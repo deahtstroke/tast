@@ -17,7 +17,7 @@ type Visitor interface {
 }
 
 type Node interface {
-	NodeLiteral() string
+	NodeLexeme() string
 	Accept(Visitor) error
 }
 
@@ -38,20 +38,20 @@ type Trivia struct {
 // https://toml.io/en/v1.1.0#table
 type TableNode struct {
 	// The key of the TableNode
-	Key Node
+	Key *KeyNode
 
 	// Any leading comments that may come before the
 	// table itself
-	LeadingComments []Trivia
+	LeadingComments []*Trivia
 
-	// Comments after or in the same line as the table
-	TrailingComments []Trivia
+	// Comment in the same line as the table
+	TrailingComment *Trivia
 
 	// Tokens that need to be parsed
 	Tokens []scanner.Token
 }
 
-func (n *TableNode) NodeLiteral() string {
+func (n *TableNode) NodeLexeme() string {
 	return "[" + n.Key.NodeLiteral() + "]"
 }
 
@@ -89,10 +89,16 @@ type KeyValueNode struct {
 
 	// List of scanner tokens that make up this key-value pair
 	Tokens []scanner.Token
+
+	// Any leading comments that may come before a key-value node
+	LeadingComments []Trivia
+
+	// Comment at the end of the line in a key-value node
+	TrailingComment Trivia
 }
 
-func (n *KeyValueNode) NodeLiteral() string {
-	segs := []string{n.Key.NodeLiteral(), n.Value.NodeLiteral()}
+func (n *KeyValueNode) NodeLexeme() string {
+	segs := []string{n.Key.NodeLiteral(), n.Value.NodeLexeme()}
 	return strings.Join(segs, " = ")
 }
 
@@ -105,7 +111,7 @@ type StringNode struct {
 	Token scanner.Token
 }
 
-func (n *StringNode) NodeLiteral() string {
+func (n *StringNode) NodeLexeme() string {
 	return n.Token.Lexeme
 }
 
@@ -118,7 +124,7 @@ type IntegerNode struct {
 	Token scanner.Token
 }
 
-func (n *IntegerNode) NodeLiteral() string {
+func (n *IntegerNode) NodeLexeme() string {
 	return n.Token.Lexeme
 }
 
@@ -131,7 +137,7 @@ type FloatNode struct {
 	Token scanner.Token
 }
 
-func (n *FloatNode) NodeLiteral() string {
+func (n *FloatNode) NodeLexeme() string {
 	return n.Token.Lexeme
 }
 
@@ -144,7 +150,7 @@ type BooleanNode struct {
 	Token scanner.Token
 }
 
-func (n *BooleanNode) NodeLiteral() string {
+func (n *BooleanNode) NodeLexeme() string {
 	if n.Value {
 		return "true"
 	} else {

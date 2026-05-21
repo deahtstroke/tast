@@ -301,7 +301,7 @@ func Test_TomlTables(t *testing.T) {
 				t.Errorf("Incorrect length of nodes for root document node: expected: %d, got: %d", params.expectedNodes, length)
 			}
 
-			tokenLiteral := doc.Content[0].NodeLiteral()
+			tokenLiteral := doc.Content[0].NodeLexeme()
 			if tokenLiteral != params.expectedLiteral {
 				t.Errorf("Incorrect token literal. Expected: %s. Got: %s", params.expectedLiteral, tokenLiteral)
 			}
@@ -465,8 +465,8 @@ func Test_ParseKeyValue(t *testing.T) {
 				}
 
 				expected := fmt.Sprintf("%s = %s", key.expectedStr, value.expectedStr)
-				if actual.NodeLiteral() != expected {
-					t.Fatalf("Non matching. Expected: %s. Got: %s", expected, actual.NodeLiteral())
+				if actual.NodeLexeme() != expected {
+					t.Fatalf("Non matching. Expected: %s. Got: %s", expected, actual.NodeLexeme())
 				}
 			})
 		}
@@ -494,7 +494,7 @@ func Test_Table(t *testing.T) {
 		t.Fatalf("Parse tree is incorrect")
 	}
 
-	keyNode, _ := tableNode.Key.(*KeyNode)
+	keyNode := tableNode.Key
 	if keyNode.Segments[0] != "HelloWorld" {
 		t.Errorf("Wrong key value. Expecting: HelloWorld. Got: %s", tableNode.Key.NodeLiteral())
 	}
