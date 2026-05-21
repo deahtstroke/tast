@@ -8,10 +8,11 @@ import (
 	"github.com/deahtstroke/toml-ast/scanner"
 )
 
-func Test_Printer(t *testing.T) {
+func Test_PrinterSuccess(t *testing.T) {
 	doc := makeDoc(
-		makeKV([]string{"hello", "world"}, makeVal("This is a string")),
-		makeKV([]string{"foo"}, makeVal("bar")),
+		makeKV([]string{"concurrency"}, makeVal(int64(100))),
+		makeKV([]string{"output.errors"}, makeVal("stderr")),
+		makeKV([]string{"output.\"logs\""}, makeVal("stdout")),
 		makeTable(makeKey("database", "rivenbot"),
 			withLeading([]string{"# Database details for Rivenbot", "# Dev only"})),
 		makeKV([]string{"url"}, makeVal("postgres://localhost:5432/rivenbot")),
@@ -23,8 +24,9 @@ func Test_Printer(t *testing.T) {
 		t.Fatalf("Got an error while calling 'print': %v", err)
 	}
 
-	expected := `hello.world = "This is a string"
-foo = "bar"
+	expected := `concurrency = 100
+output.errors = "stderr"
+output."logs" = "stdout"
 
 # Database details for Rivenbot
 # Dev only
@@ -110,7 +112,7 @@ func makeVal(value any) parser.Node {
 		}
 	case int64:
 		return &parser.IntegerNode{
-			Value: v,
+			Value: int64(v),
 			Token: scanner.Token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
