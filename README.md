@@ -12,7 +12,7 @@ built to cover that specific use case.
 
 ## Installation
 
-    go get github.com/you/tast
+    go get github.com/deahtstroke/tast
 
 ## Usage
 
