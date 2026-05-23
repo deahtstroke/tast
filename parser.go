@@ -1,21 +1,21 @@
-package parser
+package tast
 
 import (
 	"math"
 	"slices"
 
-	"github.com/deahtstroke/toml-ast/scanner"
+	"github.com/deahtstroke/toml-ast/token"
 )
 
 type Parser struct {
-	Tokens  []scanner.Token
+	Tokens  []token.Token
 	current int
 
 	errors []ParseError
 	keys   map[string]bool
 }
 
-func NewParser(tokens []scanner.Token) *Parser {
+func NewParser(tokens []token.Token) *Parser {
 	return &Parser{
 		Tokens: tokens,
 	}
@@ -23,7 +23,7 @@ func NewParser(tokens []scanner.Token) *Parser {
 
 // Starts parsing tokens, reports any errors if
 // the length of errors is non-zero
-func (p *Parser) Parse() (*Document, []ParseError) {
+func (p *Parser) parse() (*Document, []ParseError) {
 	documentNode := Document{}
 	for !p.isAtEnd() {
 		node := p.parseEntry()
@@ -39,7 +39,7 @@ func (p *Parser) Synchronize() {
 	p.advance() // skip the current token
 
 	for !p.isAtEnd() {
-		if p.previous().Type == scanner.NEW_LINE {
+		if p.previous().Type == token.NEW_LINE {
 			return
 		}
 
@@ -47,19 +47,19 @@ func (p *Parser) Synchronize() {
 	}
 }
 
-func (p *Parser) addParseError(token scanner.Token, msg string, code ParseErrorCode) {
+func (p *Parser) addParseError(token token.Token, msg string, code ParseErrorCode) {
 	p.errors = append(p.errors, ParseError{Token: token, Message: msg, Code: code})
 }
 
 func (p *Parser) parseEntry() Node {
 	switch {
-	case p.Match(scanner.LEFT_BRACKET):
+	case p.Match(token.LEFT_BRACKET):
 		node := p.Table()
 		if node == nil {
 			p.Synchronize()
 		}
 		return node
-	case p.Match(scanner.BARE_KEY, scanner.BASIC_STRING):
+	case p.Match(token.BARE_KEY, token.BASIC_STRING):
 		node := p.KeyValue()
 		if node == nil {
 			p.Synchronize()
@@ -77,7 +77,7 @@ func (p *Parser) KeyValue() *KeyValueNode {
 		return nil
 	}
 
-	if !p.Match(scanner.EQUAL) {
+	if !p.Match(token.EQUAL) {
 		p.addParseError(p.peek(), "expecting assignment operator '=' after key", ErrMissingAssignmentAfterKey)
 		return nil
 	}
@@ -94,14 +94,14 @@ func (p *Parser) KeyValue() *KeyValueNode {
 }
 
 func (p *Parser) value() Node {
-	if p.Match(scanner.MINUS, scanner.PLUS) {
+	if p.Match(token.MINUS, token.PLUS) {
 		operator := p.previous().Type
 		switch {
-		case p.Match(scanner.FLOAT):
+		case p.Match(token.FLOAT):
 			return createFloatNode(p, operator)
-		case p.Match(scanner.INTEGER):
+		case p.Match(token.INTEGER):
 			return createIntNode(p, operator)
-		case p.Match(scanner.INF):
+		case p.Match(token.INF):
 			return createInfinityNode(p, operator)
 		default:
 			p.addParseError(p.peek(), "Unable to recognize token that follows -/+", ErrUnrecognizedToken)
@@ -110,17 +110,17 @@ func (p *Parser) value() Node {
 	}
 
 	switch {
-	case p.Match(scanner.FLOAT):
+	case p.Match(token.FLOAT):
 		return createFloatNode(p, 0)
-	case p.Match(scanner.INTEGER):
+	case p.Match(token.INTEGER):
 		return createIntNode(p, 0)
-	case p.Match(scanner.FALSE):
-		return createBoolNode(p, scanner.FALSE)
-	case p.Match(scanner.TRUE):
-		return createBoolNode(p, scanner.TRUE)
-	case p.Match(scanner.INF):
+	case p.Match(token.FALSE):
+		return createBoolNode(p, token.FALSE)
+	case p.Match(token.TRUE):
+		return createBoolNode(p, token.TRUE)
+	case p.Match(token.INF):
 		return createInfinityNode(p, 0)
-	case p.Match(scanner.BASIC_STRING, scanner.MULTILINE_BASIC_STRING):
+	case p.Match(token.BASIC_STRING, token.MULTILINE_BASIC_STRING):
 		return createStringNode(p)
 	default:
 	}
@@ -141,16 +141,16 @@ func createStringNode(p *Parser) Node {
 	}
 }
 
-func createBoolNode(p *Parser, b scanner.TokenType) Node {
+func createBoolNode(p *Parser, b token.TokenType) Node {
 	return &BooleanNode{
-		Value: b == scanner.TRUE,
+		Value: b == token.TRUE,
 		Token: p.previous(),
 	}
 }
 
-func createInfinityNode(p *Parser, operator scanner.TokenType) Node {
+func createInfinityNode(p *Parser, operator token.TokenType) Node {
 	val := math.MaxInt64
-	if operator == scanner.MINUS {
+	if operator == token.MINUS {
 		val = -val
 	}
 
@@ -160,14 +160,14 @@ func createInfinityNode(p *Parser, operator scanner.TokenType) Node {
 	}
 }
 
-func createIntNode(p *Parser, operator scanner.TokenType) Node {
+func createIntNode(p *Parser, operator token.TokenType) Node {
 	val, ok := p.previous().Literal.(int64)
 	if !ok {
 		p.addParseError(p.peek(), "Unable to parse value as int64", ErrParsingInt)
 		return nil
 	}
 
-	if operator == scanner.MINUS {
+	if operator == token.MINUS {
 		val = -val
 	}
 
@@ -177,14 +177,14 @@ func createIntNode(p *Parser, operator scanner.TokenType) Node {
 	}
 }
 
-func createFloatNode(p *Parser, operator scanner.TokenType) Node {
+func createFloatNode(p *Parser, operator token.TokenType) Node {
 	val, ok := p.previous().Literal.(float64)
 	if !ok {
 		p.addParseError(p.peek(), "Unable to parse value to float64", ErrParsingFloat)
 		return nil
 	}
 
-	if operator == scanner.MINUS {
+	if operator == token.MINUS {
 		val = -val
 	}
 
@@ -197,14 +197,14 @@ func createFloatNode(p *Parser, operator scanner.TokenType) Node {
 // Parse a TOML table which follows the grammar rule:
 // table -> LEFT_BRACKET  RIGHT_BRACKET
 func (p *Parser) Table() *TableNode {
-	if !p.Match(scanner.BARE_KEY, scanner.BASIC_STRING) {
+	if !p.Match(token.BARE_KEY, token.BASIC_STRING) {
 		p.addParseError(p.peek(), "expected a key after left-bracket", ErrMalformedTableKey)
 		return nil
 	}
 
 	key := p.Key()
 
-	if !p.Match(scanner.RIGHT_BRACKET) {
+	if !p.Match(token.RIGHT_BRACKET) {
 		p.addParseError(p.peek(), "Expecting closing bracket ']' after key definition", ErrMissingClosingBracket)
 		return nil
 	}
@@ -220,11 +220,11 @@ func (p *Parser) Key() *KeyNode {
 	curr := p.previous()
 	node := &KeyNode{
 		Segments: []string{curr.Lexeme},
-		Tokens:   []scanner.Token{curr},
+		Tokens:   []token.Token{curr},
 	}
 
-	for p.Match(scanner.DOT) {
-		if !p.Match(scanner.BASIC_STRING, scanner.BARE_KEY) {
+	for p.Match(token.DOT) {
+		if !p.Match(token.BASIC_STRING, token.BARE_KEY) {
 			p.addParseError(p.peek(), "expected string or barekey after dot '.'", ErrNoKeyAfterDot)
 			return nil
 		}
@@ -237,7 +237,7 @@ func (p *Parser) Key() *KeyNode {
 	return node
 }
 
-func (p *Parser) Match(types ...scanner.TokenType) bool {
+func (p *Parser) Match(types ...token.TokenType) bool {
 	if slices.ContainsFunc(types, p.check) {
 		p.advance()
 		return true
@@ -246,28 +246,28 @@ func (p *Parser) Match(types ...scanner.TokenType) bool {
 	return false
 }
 
-func (p *Parser) check(token scanner.TokenType) bool {
+func (p *Parser) check(token token.TokenType) bool {
 	if p.isAtEnd() {
 		return false
 	}
 	return p.peek().Type == token
 }
 
-func (p *Parser) advance() scanner.Token {
+func (p *Parser) advance() token.Token {
 	if !p.isAtEnd() {
 		p.current++
 	}
 	return p.previous()
 }
 
-func (p *Parser) peek() scanner.Token {
+func (p *Parser) peek() token.Token {
 	return p.Tokens[p.current]
 }
 
 func (p *Parser) isAtEnd() bool {
-	return p.peek().Type == scanner.EOF
+	return p.peek().Type == token.EOF
 }
 
-func (p *Parser) previous() scanner.Token {
+func (p *Parser) previous() token.Token {
 	return p.Tokens[p.current-1]
 }

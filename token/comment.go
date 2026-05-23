@@ -1,4 +1,4 @@
-package scanner
+package token
 
 func (s *Scanner) comment() {
 	for s.peek() != '\n' && !s.isAtEnd() {

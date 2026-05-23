@@ -1,4 +1,4 @@
-package scanner
+package token
 
 import "testing"
 
@@ -63,7 +63,7 @@ func Test_IntegerNode(t *testing.T) {
 				current: 0,
 			}
 
-			s.ScanTokens()
+			s.Scan()
 
 			if s.Tokens[0].Type != tt.tokenType {
 				t.Fatalf("Incorrect token type: Expected %v. Got %v", INTEGER, s.Tokens[0].Type)

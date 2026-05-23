@@ -1,4 +1,4 @@
-package scanner
+package token
 
 type TokenType uint32
 

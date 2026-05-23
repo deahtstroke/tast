@@ -1,4 +1,4 @@
-package scanner
+package token
 
 type Scanner struct {
 	Source []byte
@@ -17,7 +17,13 @@ var reserved = map[string]TokenType{
 	"nan":   NAN,
 }
 
-func (s *Scanner) ScanTokens() {
+func NewScanner(src []byte) *Scanner {
+	return &Scanner{
+		Source: src,
+	}
+}
+
+func (s *Scanner) Scan() {
 	for !s.isAtEnd() {
 		s.start = s.current
 		s.scanToken()

@@ -1,4 +1,4 @@
-package scanner
+package token
 
 import "testing"
 
@@ -12,7 +12,7 @@ func Test_CommentNode(t *testing.T) {
 		current: 0,
 		start:   0,
 	}
-	scanner.ScanTokens()
+	scanner.Scan()
 
 	if len(scanner.Tokens)-1 != 2 { // Minus the EOF token
 		t.Fatalf("Expecting two comment tokens parsed: %v", len(scanner.Tokens))

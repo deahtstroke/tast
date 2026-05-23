@@ -1,4 +1,4 @@
-package parser
+package tast
 
 import (
 	"fmt"
@@ -6,12 +6,12 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/deahtstroke/toml-ast/scanner"
+	"github.com/deahtstroke/toml-ast/token"
 )
 
 func Test_TomlTables(t *testing.T) {
 	tests := map[string]struct {
-		tokens          []scanner.Token
+		tokens          []token.Token
 		expectedLiteral string
 		expectedNodes   int
 		shouldErr       bool
@@ -19,24 +19,24 @@ func Test_TomlTables(t *testing.T) {
 		errorCodes      []ParseErrorCode
 	}{
 		"Table with basic string key": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.LEFT_BRACKET,
+					Type:    token.LEFT_BRACKET,
 					Lexeme:  "[",
 					Literal: string("["),
 				},
 				{
-					Type:    scanner.BARE_KEY,
+					Type:    token.BARE_KEY,
 					Lexeme:  "HelloWorld",
 					Literal: string("HelloWorld"),
 				},
 				{
-					Type:    scanner.RIGHT_BRACKET,
+					Type:    token.RIGHT_BRACKET,
 					Lexeme:  "]",
 					Literal: string("]"),
 				},
 				{
-					Type: scanner.EOF,
+					Type: token.EOF,
 				},
 			},
 			expectedLiteral: "[HelloWorld]",
@@ -44,24 +44,24 @@ func Test_TomlTables(t *testing.T) {
 			shouldErr:       false,
 		},
 		"Table with basic dotted string key": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.LEFT_BRACKET,
+					Type:    token.LEFT_BRACKET,
 					Lexeme:  "[",
 					Literal: string("["),
 				},
 				{
-					Type:    scanner.BASIC_STRING,
+					Type:    token.BASIC_STRING,
 					Lexeme:  "\"Hello.World\"",
 					Literal: string("\"Hello.World\""),
 				},
 				{
-					Type:    scanner.RIGHT_BRACKET,
+					Type:    token.RIGHT_BRACKET,
 					Lexeme:  "]",
 					Literal: string("]"),
 				},
 				{
-					Type: scanner.EOF,
+					Type: token.EOF,
 				},
 			},
 			expectedLiteral: "[\"Hello.World\"]",
@@ -69,34 +69,34 @@ func Test_TomlTables(t *testing.T) {
 			shouldErr:       false,
 		},
 		"Table with bare dotted key": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.LEFT_BRACKET,
+					Type:    token.LEFT_BRACKET,
 					Lexeme:  "[",
 					Literal: string("["),
 				},
 				{
-					Type:    scanner.BARE_KEY,
+					Type:    token.BARE_KEY,
 					Lexeme:  "hello",
 					Literal: string("hello"),
 				},
 				{
-					Type:    scanner.DOT,
+					Type:    token.DOT,
 					Lexeme:  ".",
 					Literal: string("."),
 				},
 				{
-					Type:    scanner.BARE_KEY,
+					Type:    token.BARE_KEY,
 					Lexeme:  "world",
 					Literal: string("world"),
 				},
 				{
-					Type:    scanner.RIGHT_BRACKET,
+					Type:    token.RIGHT_BRACKET,
 					Lexeme:  "]",
 					Literal: string("]"),
 				},
 				{
-					Type: scanner.EOF,
+					Type: token.EOF,
 				},
 			},
 			expectedLiteral: "[hello.world]",
@@ -104,34 +104,34 @@ func Test_TomlTables(t *testing.T) {
 			shouldErr:       false,
 		},
 		"Table with bare dotted key and basic string": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.LEFT_BRACKET,
+					Type:    token.LEFT_BRACKET,
 					Lexeme:  "[",
 					Literal: string("["),
 				},
 				{
-					Type:    scanner.BASIC_STRING,
+					Type:    token.BASIC_STRING,
 					Lexeme:  "\"hello.world\"",
 					Literal: string("\"hello.world\""),
 				},
 				{
-					Type:    scanner.DOT,
+					Type:    token.DOT,
 					Lexeme:  ".",
 					Literal: string("."),
 				},
 				{
-					Type:    scanner.BARE_KEY,
+					Type:    token.BARE_KEY,
 					Lexeme:  "bar",
 					Literal: string("bar"),
 				},
 				{
-					Type:    scanner.RIGHT_BRACKET,
+					Type:    token.RIGHT_BRACKET,
 					Lexeme:  "]",
 					Literal: string("]"),
 				},
 				{
-					Type: scanner.EOF,
+					Type: token.EOF,
 				},
 			},
 			expectedLiteral: "[\"hello.world\".bar]",
@@ -139,19 +139,19 @@ func Test_TomlTables(t *testing.T) {
 			shouldErr:       false,
 		},
 		"Should error on KeyValue node with no assignment after key": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.BARE_KEY,
+					Type:    token.BARE_KEY,
 					Lexeme:  "hello",
 					Literal: string("hello"),
 				},
 				{
-					Type:    scanner.FLOAT,
+					Type:    token.FLOAT,
 					Lexeme:  "3.14",
 					Literal: float64(3.14),
 				},
 				{
-					Type: scanner.EOF,
+					Type: token.EOF,
 				},
 			},
 			shouldErr:  true,
@@ -159,29 +159,29 @@ func Test_TomlTables(t *testing.T) {
 			errorCodes: []ParseErrorCode{ErrMissingAssignmentAfterKey},
 		},
 		"Should error on KeyValue node with missing key after dot": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.BARE_KEY,
+					Type:    token.BARE_KEY,
 					Lexeme:  "hello",
 					Literal: string("hello"),
 				},
 				{
-					Type:    scanner.DOT,
+					Type:    token.DOT,
 					Lexeme:  ".",
 					Literal: string("."),
 				},
 				{
-					Type:    scanner.EQUAL,
+					Type:    token.EQUAL,
 					Lexeme:  "=",
 					Literal: string("="),
 				},
 				{
-					Type:    scanner.FLOAT,
+					Type:    token.FLOAT,
 					Lexeme:  "3.14",
 					Literal: float64(3.14),
 				},
 				{
-					Type: scanner.EOF,
+					Type: token.EOF,
 				},
 			},
 			shouldErr:  true,
@@ -189,24 +189,24 @@ func Test_TomlTables(t *testing.T) {
 			errorCodes: []ParseErrorCode{ErrNoKeyAfterDot},
 		},
 		"Should report only missing key after dot even with no assignment": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.BARE_KEY,
+					Type:    token.BARE_KEY,
 					Lexeme:  "hello",
 					Literal: string("hello"),
 				},
 				{
-					Type:    scanner.DOT,
+					Type:    token.DOT,
 					Lexeme:  ".",
 					Literal: string("."),
 				},
 				{
-					Type:    scanner.FLOAT,
+					Type:    token.FLOAT,
 					Lexeme:  "3.14",
 					Literal: float64(3.14),
 				},
 				{
-					Type: scanner.EOF,
+					Type: token.EOF,
 				},
 			},
 			shouldErr:  true,
@@ -214,19 +214,19 @@ func Test_TomlTables(t *testing.T) {
 			errorCodes: []ParseErrorCode{ErrNoKeyAfterDot},
 		},
 		"Should report error when key is malformed": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.LEFT_BRACKET,
+					Type:    token.LEFT_BRACKET,
 					Lexeme:  "[",
 					Literal: string("["),
 				},
 				{
-					Type:    scanner.EQUAL,
+					Type:    token.EQUAL,
 					Lexeme:  "=",
 					Literal: string("="),
 				},
 				{
-					Type: scanner.EOF,
+					Type: token.EOF,
 				},
 			},
 			shouldErr:  true,
@@ -234,39 +234,39 @@ func Test_TomlTables(t *testing.T) {
 			errorCodes: []ParseErrorCode{ErrMalformedTableKey},
 		},
 		"Should report both key is malformed and no key after dot": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.LEFT_BRACKET,
+					Type:    token.LEFT_BRACKET,
 					Lexeme:  "[",
 					Literal: string("["),
 				},
 				{
-					Type:    scanner.EQUAL,
+					Type:    token.EQUAL,
 					Lexeme:  "=",
 					Literal: string("="),
 				},
 				{
-					Type:    scanner.NEW_LINE,
+					Type:    token.NEW_LINE,
 					Lexeme:  "\n",
 					Literal: string("\n"),
 				},
 				{
-					Type:    scanner.BARE_KEY,
+					Type:    token.BARE_KEY,
 					Lexeme:  "hello",
 					Literal: string("hello"),
 				},
 				{
-					Type:    scanner.DOT,
+					Type:    token.DOT,
 					Lexeme:  ".",
 					Literal: string("."),
 				},
 				{
-					Type:    scanner.FLOAT,
+					Type:    token.FLOAT,
 					Lexeme:  "3.14",
 					Literal: float64(3.14),
 				},
 				{
-					Type: scanner.EOF,
+					Type: token.EOF,
 				},
 			},
 			shouldErr:  true,
@@ -278,7 +278,7 @@ func Test_TomlTables(t *testing.T) {
 	for test, params := range tests {
 		t.Run(test, func(t *testing.T) {
 			parser := NewParser(params.tokens)
-			doc, errs := parser.Parse()
+			doc, errs := parser.parse()
 			if params.shouldErr {
 				if len(errs) != params.errorCount {
 					t.Fatalf("Expecting %d errors, found %d: %v", params.errorCount, len(errs), errs)
@@ -320,13 +320,13 @@ func containsErrorCode(errs []ParseError, code ParseErrorCode) bool {
 
 func Test_ParseKeyValue(t *testing.T) {
 	keyForms := []struct {
-		tokens      []scanner.Token
+		tokens      []token.Token
 		expectedStr string
 	}{
 		{
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.BARE_KEY,
+					Type:    token.BARE_KEY,
 					Literal: string("foo"),
 					Lexeme:  "foo",
 				},
@@ -334,9 +334,9 @@ func Test_ParseKeyValue(t *testing.T) {
 			expectedStr: "foo",
 		},
 		{
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.BASIC_STRING,
+					Type:    token.BASIC_STRING,
 					Literal: string("\"foo\""),
 					Lexeme:  "\"foo\"",
 				},
@@ -344,17 +344,17 @@ func Test_ParseKeyValue(t *testing.T) {
 			expectedStr: "\"foo\"",
 		},
 		{
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.BASIC_STRING,
+					Type:    token.BASIC_STRING,
 					Literal: string("\"foo\""),
 					Lexeme:  "\"foo\"",
 				},
 				{
-					Type: scanner.DOT,
+					Type: token.DOT,
 				},
 				{
-					Type:    scanner.BASIC_STRING,
+					Type:    token.BASIC_STRING,
 					Literal: string("\"bar\""),
 					Lexeme:  "\"bar\"",
 				},
@@ -362,17 +362,17 @@ func Test_ParseKeyValue(t *testing.T) {
 			expectedStr: "\"foo\".\"bar\"",
 		},
 		{
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.BASIC_STRING,
+					Type:    token.BASIC_STRING,
 					Literal: string("\"foo\""),
 					Lexeme:  "\"foo\"",
 				},
 				{
-					Type: scanner.DOT,
+					Type: token.DOT,
 				},
 				{
-					Type:    scanner.BARE_KEY,
+					Type:    token.BARE_KEY,
 					Literal: string("bar"),
 					Lexeme:  "bar",
 				},
@@ -382,60 +382,60 @@ func Test_ParseKeyValue(t *testing.T) {
 	}
 
 	valueForms := []struct {
-		token       scanner.Token
+		token       token.Token
 		expectedStr string
 	}{
 		{
-			token: scanner.Token{
-				Type:    scanner.INTEGER,
+			token: token.Token{
+				Type:    token.INTEGER,
 				Literal: int64(314),
 				Lexeme:  "314",
 			},
 			expectedStr: "314",
 		},
 		{
-			token: scanner.Token{
-				Type:    scanner.INTEGER,
+			token: token.Token{
+				Type:    token.INTEGER,
 				Literal: int64(-314),
 				Lexeme:  "-314",
 			},
 			expectedStr: "-314",
 		},
 		{
-			token: scanner.Token{
-				Type:    scanner.FLOAT,
+			token: token.Token{
+				Type:    token.FLOAT,
 				Literal: float64(3.14),
 				Lexeme:  "3.14",
 			},
 			expectedStr: "3.14",
 		},
 		{
-			token: scanner.Token{
-				Type:    scanner.FLOAT,
+			token: token.Token{
+				Type:    token.FLOAT,
 				Literal: float64(-3.14),
 				Lexeme:  "-3.14",
 			},
 			expectedStr: "-3.14",
 		},
 		{
-			token: scanner.Token{
-				Type:    scanner.BASIC_STRING,
+			token: token.Token{
+				Type:    token.BASIC_STRING,
 				Literal: string("\"Roses are red, Violets are blue\""),
 				Lexeme:  "\"Roses are red, Violets are blue\"",
 			},
 			expectedStr: "\"Roses are red, Violets are blue\"",
 		},
 		{
-			token: scanner.Token{
-				Type:    scanner.TRUE,
+			token: token.Token{
+				Type:    token.TRUE,
 				Literal: bool(true),
 				Lexeme:  "true",
 			},
 			expectedStr: "true",
 		},
 		{
-			token: scanner.Token{
-				Type:    scanner.FALSE,
+			token: token.Token{
+				Type:    token.FALSE,
 				Literal: bool(false),
 				Lexeme:  "false",
 			},
@@ -447,14 +447,14 @@ func Test_ParseKeyValue(t *testing.T) {
 		for _, value := range valueForms {
 			testName := fmt.Sprintf("%s = %s", key.expectedStr, value.expectedStr)
 			t.Run(testName, func(t *testing.T) {
-				tokens := []scanner.Token{}
+				tokens := []token.Token{}
 				tokens = append(tokens, key.tokens...)
-				tokens = append(tokens, scanner.Token{Type: scanner.EQUAL})
+				tokens = append(tokens, token.Token{Type: token.EQUAL})
 				tokens = append(tokens, value.token)
-				tokens = append(tokens, scanner.Token{Type: scanner.EOF})
+				tokens = append(tokens, token.Token{Type: token.EOF})
 
 				parser := NewParser(tokens)
-				doc, errs := parser.Parse()
+				doc, errs := parser.parse()
 				if len(errs) != 0 {
 					t.Fatalf("Not expecting errors, got: %+v", errs)
 				}
@@ -474,15 +474,15 @@ func Test_ParseKeyValue(t *testing.T) {
 }
 
 func Test_Table(t *testing.T) {
-	tokens := []scanner.Token{
+	tokens := []token.Token{
 		{
-			Type:    scanner.BASIC_STRING,
+			Type:    token.BASIC_STRING,
 			Lexeme:  "HelloWorld",
 			Literal: "HelloWorld",
 			Line:    0,
 		},
 		{
-			Type:    scanner.RIGHT_BRACKET,
+			Type:    token.RIGHT_BRACKET,
 			Lexeme:  "[",
 			Literal: "[",
 			Line:    0,
@@ -502,20 +502,20 @@ func Test_Table(t *testing.T) {
 
 func Test_Value(t *testing.T) {
 	tests := map[string]struct {
-		tokens      []scanner.Token
+		tokens      []token.Token
 		expNodeType any
 		expValue    any
 	}{
 		"negative integer": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.MINUS,
+					Type:    token.MINUS,
 					Lexeme:  "-",
 					Literal: "-",
 					Line:    1,
 				},
 				{
-					Type:    scanner.INTEGER,
+					Type:    token.INTEGER,
 					Lexeme:  "1234",
 					Literal: int64(1234),
 					Line:    1,
@@ -525,15 +525,15 @@ func Test_Value(t *testing.T) {
 			expValue:    int64(-1234),
 		},
 		"positive integer": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.PLUS,
+					Type:    token.PLUS,
 					Lexeme:  "+",
 					Literal: "+",
 					Line:    1,
 				},
 				{
-					Type:    scanner.INTEGER,
+					Type:    token.INTEGER,
 					Lexeme:  "12341",
 					Literal: int64(12341),
 					Line:    1,
@@ -543,9 +543,9 @@ func Test_Value(t *testing.T) {
 			expValue:    int64(12341),
 		},
 		"unsigned integer": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.INTEGER,
+					Type:    token.INTEGER,
 					Lexeme:  "12341",
 					Literal: int64(12341),
 					Line:    1,
@@ -555,15 +555,15 @@ func Test_Value(t *testing.T) {
 			expValue:    int64(12341),
 		},
 		"negative floating point": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.MINUS,
+					Type:    token.MINUS,
 					Lexeme:  "-",
 					Literal: "-",
 					Line:    0,
 				},
 				{
-					Type:    scanner.FLOAT,
+					Type:    token.FLOAT,
 					Lexeme:  "3.12451",
 					Literal: float64(3.12451),
 					Line:    0,
@@ -573,15 +573,15 @@ func Test_Value(t *testing.T) {
 			expValue:    float64(-3.12451),
 		},
 		"positive floating point": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.PLUS,
+					Type:    token.PLUS,
 					Lexeme:  "+",
 					Literal: "+",
 					Line:    0,
 				},
 				{
-					Type:    scanner.FLOAT,
+					Type:    token.FLOAT,
 					Lexeme:  "3.12451",
 					Literal: float64(3.12451),
 					Line:    0,
@@ -591,9 +591,9 @@ func Test_Value(t *testing.T) {
 			expValue:    float64(3.12451),
 		},
 		"unsigned floating point": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.FLOAT,
+					Type:    token.FLOAT,
 					Lexeme:  "3.12451",
 					Literal: float64(3.12451),
 					Line:    0,
@@ -603,15 +603,15 @@ func Test_Value(t *testing.T) {
 			expValue:    float64(3.12451),
 		},
 		"negative infinity": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.MINUS,
+					Type:    token.MINUS,
 					Lexeme:  "-",
 					Literal: "-",
 					Line:    0,
 				},
 				{
-					Type:    scanner.INF,
+					Type:    token.INF,
 					Lexeme:  "inf",
 					Literal: nil,
 					Line:    0,
@@ -621,15 +621,15 @@ func Test_Value(t *testing.T) {
 			expValue:    -int64(math.MaxInt64),
 		},
 		"positive infinity": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.PLUS,
+					Type:    token.PLUS,
 					Lexeme:  "+",
 					Literal: "+",
 					Line:    0,
 				},
 				{
-					Type:    scanner.INF,
+					Type:    token.INF,
 					Lexeme:  "inf",
 					Literal: nil,
 					Line:    0,
@@ -639,9 +639,9 @@ func Test_Value(t *testing.T) {
 			expValue:    int64(math.MaxInt64),
 		},
 		"unsigned infinity": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.INF,
+					Type:    token.INF,
 					Lexeme:  "inf",
 					Literal: nil,
 					Line:    0,
@@ -651,9 +651,9 @@ func Test_Value(t *testing.T) {
 			expValue:    int64(math.MaxInt64),
 		},
 		"false": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:   scanner.FALSE,
+					Type:   token.FALSE,
 					Lexeme: "false",
 					Line:   0,
 				},
@@ -662,9 +662,9 @@ func Test_Value(t *testing.T) {
 			expValue:    false,
 		},
 		"true": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:   scanner.TRUE,
+					Type:   token.TRUE,
 					Lexeme: "true",
 					Line:   0,
 				},
@@ -673,9 +673,9 @@ func Test_Value(t *testing.T) {
 			expValue:    true,
 		},
 		"basic string": {
-			tokens: []scanner.Token{
+			tokens: []token.Token{
 				{
-					Type:    scanner.BASIC_STRING,
+					Type:    token.BASIC_STRING,
 					Lexeme:  "hello world!",
 					Literal: "hello world!",
 					Line:    0,

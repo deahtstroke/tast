@@ -1,11 +1,11 @@
-package scanner
+package token
 
 func (s *Scanner) key() {
 	for !s.isAtEnd() && isKey(s.peek()) {
 		s.advance()
 	}
 
-	text := string(s.Source[s.start: s.current])
+	text := string(s.Source[s.start:s.current])
 	token, ok := reserved[text]
 	if ok {
 		s.addToken(token)

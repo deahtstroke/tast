@@ -1,4 +1,4 @@
-package scanner
+package token
 
 import "testing"
 
@@ -42,7 +42,7 @@ My name is.
 				current: 0,
 			}
 
-			s.ScanTokens()
+			s.Scan()
 
 			if s.Tokens[0].Type != tt.tokenType {
 				t.Fatalf("Incorrect token type: Expected String %v. Got %v", tt.tokenType, s.Tokens[0].Type)

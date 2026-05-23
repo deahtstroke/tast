@@ -1,11 +1,10 @@
-package printer
+package tast
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/deahtstroke/toml-ast/parser"
-	"github.com/deahtstroke/toml-ast/scanner"
+	"github.com/deahtstroke/toml-ast/token"
 )
 
 func Test_PrinterSuccess(t *testing.T) {
@@ -19,7 +18,7 @@ func Test_PrinterSuccess(t *testing.T) {
 		makeKV([]string{"username"}, makeVal("daniel")),
 	)
 
-	res, err := NewPrinter().Print(doc)
+	res, err := NewPrinter().print(doc)
 	if err != nil {
 		t.Fatalf("Got an error while calling 'print': %v", err)
 	}
@@ -40,14 +39,14 @@ username = "daniel"
 	}
 }
 
-func makeDoc(nodes ...parser.Node) *parser.Document {
-	return &parser.Document{Content: nodes}
+func makeDoc(nodes ...Node) *Document {
+	return &Document{Content: nodes}
 }
 
-type TableOption func(*parser.TableNode)
+type TableOption func(*TableNode)
 
-func makeTable(keyNode *parser.KeyNode, opts ...TableOption) *parser.TableNode {
-	table := &parser.TableNode{
+func makeTable(keyNode *KeyNode, opts ...TableOption) *TableNode {
+	table := &TableNode{
 		Key:    keyNode,
 		Tokens: keyNode.Tokens,
 	}
@@ -60,7 +59,7 @@ func makeTable(keyNode *parser.KeyNode, opts ...TableOption) *parser.TableNode {
 }
 
 func withLeading(comments []string) TableOption {
-	return func(tn *parser.TableNode) {
+	return func(tn *TableNode) {
 		for _, c := range comments {
 			tn.LeadingComments = append(tn.LeadingComments, makeTrivia(c))
 		}
@@ -68,66 +67,66 @@ func withLeading(comments []string) TableOption {
 }
 
 func withTrailing(comment string) TableOption {
-	return func(tn *parser.TableNode) {
+	return func(tn *TableNode) {
 		tn.TrailingComment = makeTrivia(comment)
 	}
 }
 
-func makeTrivia(lex string) *parser.Trivia {
+func makeTrivia(lex string) *Trivia {
 	if lex == "" {
 		return nil
 	}
 
-	return &parser.Trivia{
+	return &Trivia{
 		Lexeme: lex,
 	}
 }
 
-func makeKV(keys []string, value parser.Node) *parser.KeyValueNode {
-	return &parser.KeyValueNode{
+func makeKV(keys []string, value Node) *KeyValueNode {
+	return &KeyValueNode{
 		Key:   makeKey(keys...),
 		Value: value,
 	}
 }
 
-func makeKey(keys ...string) *parser.KeyNode {
-	var tokens []scanner.Token
+func makeKey(keys ...string) *KeyNode {
+	var tokens []token.Token
 	for _, key := range keys {
-		tokens = append(tokens, scanner.Token{Lexeme: key})
+		tokens = append(tokens, token.Token{Lexeme: key})
 	}
-	return &parser.KeyNode{
+	return &KeyNode{
 		Segments: keys,
 		Tokens:   tokens,
 	}
 }
 
-func makeVal(value any) parser.Node {
+func makeVal(value any) Node {
 	switch v := value.(type) {
 	case float64:
-		return &parser.FloatNode{
+		return &FloatNode{
 			Value: v,
-			Token: scanner.Token{
+			Token: token.Token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}
 	case int64:
-		return &parser.IntegerNode{
+		return &IntegerNode{
 			Value: int64(v),
-			Token: scanner.Token{
+			Token: token.Token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}
 	case string:
-		return &parser.StringNode{
+		return &StringNode{
 			Value: v,
-			Token: scanner.Token{
+			Token: token.Token{
 				Lexeme: fmt.Sprintf("\"%v\"", v),
 			},
 		}
 	case bool:
-		return &parser.BooleanNode{
+		return &BooleanNode{
 			Value: v,
-			Token: scanner.Token{
+			Token: token.Token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}

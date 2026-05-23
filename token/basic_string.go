@@ -1,4 +1,4 @@
-package scanner
+package token
 
 func (s *Scanner) multilineBasicString() {
 	for !s.isAtEnd() && !s.isMultilineClosing() {
