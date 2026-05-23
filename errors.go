@@ -3,7 +3,7 @@ package tast
 import (
 	"fmt"
 
-	"github.com/deahtstroke/toml-ast/scanner"
+	"github.com/deahtstroke/tast/scanner"
 )
 
 type ParseErrorCode int

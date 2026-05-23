@@ -4,7 +4,7 @@ import (
 	"math"
 	"slices"
 
-	"github.com/deahtstroke/toml-ast/scanner"
+	"github.com/deahtstroke/tast/scanner"
 )
 
 type Parser struct {

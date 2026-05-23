@@ -3,7 +3,7 @@ package tast
 import (
 	"strings"
 
-	"github.com/deahtstroke/toml-ast/scanner"
+	"github.com/deahtstroke/tast/scanner"
 )
 
 type Visitor interface {

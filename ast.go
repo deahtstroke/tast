@@ -4,7 +4,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/deahtstroke/toml-ast/scanner"
+	"github.com/deahtstroke/tast/scanner"
 )
 
 func Parse(src []byte) (*Document, error) {
