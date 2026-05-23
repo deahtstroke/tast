@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/deahtstroke/toml-ast/token"
+	"github.com/deahtstroke/toml-ast/scanner"
 )
 
 func Test_PrinterSuccess(t *testing.T) {
@@ -90,9 +90,9 @@ func makeKV(keys []string, value Node) *KeyValueNode {
 }
 
 func makeKey(keys ...string) *KeyNode {
-	var tokens []token.Token
+	var tokens []scanner.Token
 	for _, key := range keys {
-		tokens = append(tokens, token.Token{Lexeme: key})
+		tokens = append(tokens, scanner.Token{Lexeme: key})
 	}
 	return &KeyNode{
 		Segments: keys,
@@ -105,28 +105,28 @@ func makeVal(value any) Node {
 	case float64:
 		return &FloatNode{
 			Value: v,
-			Token: token.Token{
+			Token: scanner.Token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}
 	case int64:
 		return &IntegerNode{
 			Value: int64(v),
-			Token: token.Token{
+			Token: scanner.Token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}
 	case string:
 		return &StringNode{
 			Value: v,
-			Token: token.Token{
+			Token: scanner.Token{
 				Lexeme: fmt.Sprintf("\"%v\"", v),
 			},
 		}
 	case bool:
 		return &BooleanNode{
 			Value: v,
-			Token: token.Token{
+			Token: scanner.Token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}

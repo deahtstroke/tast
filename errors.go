@@ -3,7 +3,7 @@ package tast
 import (
 	"fmt"
 
-	"github.com/deahtstroke/toml-ast/token"
+	"github.com/deahtstroke/toml-ast/scanner"
 )
 
 type ParseErrorCode int
@@ -20,7 +20,7 @@ const (
 )
 
 type ParseError struct {
-	Token   token.Token
+	Token   scanner.Token
 	Message string
 	Code    ParseErrorCode
 }

@@ -4,11 +4,11 @@ import (
 	"io"
 	"os"
 
-	"github.com/deahtstroke/toml-ast/token"
+	"github.com/deahtstroke/toml-ast/scanner"
 )
 
 func Parse(src []byte) (*Document, error) {
-	scanner := token.NewScanner(src)
+	scanner := scanner.NewScanner(src)
 	scanner.Scan()
 
 	parser := NewParser(scanner.Tokens)

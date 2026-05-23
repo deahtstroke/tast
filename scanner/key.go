@@ -1,4 +1,4 @@
-package token
+package scanner
 
 func (s *Scanner) key() {
 	for !s.isAtEnd() && isKey(s.peek()) {
