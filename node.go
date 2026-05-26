@@ -2,8 +2,6 @@ package tast
 
 import (
 	"strings"
-
-	"github.com/deahtstroke/tast/scanner"
 )
 
 type Visitor interface {
@@ -48,7 +46,7 @@ type TableNode struct {
 	TrailingComment *Trivia
 
 	// Tokens that need to be parsed
-	Tokens []scanner.Token
+	Tokens []Token
 }
 
 func (n *TableNode) NodeLexeme() string {
@@ -67,7 +65,7 @@ type KeyNode struct {
 	Segments []string
 
 	// List of scanner tokens that make up this KeyNode
-	Tokens []scanner.Token
+	Tokens []Token
 }
 
 func (n *KeyNode) NodeLiteral() string {
@@ -88,7 +86,7 @@ type KeyValueNode struct {
 	Value Node
 
 	// List of scanner tokens that make up this key-value pair
-	Tokens []scanner.Token
+	Tokens []Token
 
 	// Any leading comments that may come before a key-value node
 	LeadingComments []Trivia
@@ -108,7 +106,7 @@ func (n *KeyValueNode) Accept(v Visitor) error {
 
 type StringNode struct {
 	Value string
-	Token scanner.Token
+	Token Token
 }
 
 func (n *StringNode) NodeLexeme() string {
@@ -121,7 +119,7 @@ func (n *StringNode) Accept(v Visitor) error {
 
 type IntegerNode struct {
 	Value int64
-	Token scanner.Token
+	Token Token
 }
 
 func (n *IntegerNode) NodeLexeme() string {
@@ -134,7 +132,7 @@ func (n *IntegerNode) Accept(v Visitor) error {
 
 type FloatNode struct {
 	Value float64
-	Token scanner.Token
+	Token Token
 }
 
 func (n *FloatNode) NodeLexeme() string {
@@ -147,7 +145,7 @@ func (n *FloatNode) Accept(v Visitor) error {
 
 type BooleanNode struct {
 	Value bool
-	Token scanner.Token
+	Token Token
 }
 
 func (n *BooleanNode) NodeLexeme() string {

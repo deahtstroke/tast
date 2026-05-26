@@ -3,12 +3,10 @@ package tast
 import (
 	"io"
 	"os"
-
-	"github.com/deahtstroke/tast/scanner"
 )
 
 func Parse(src []byte) (*Document, error) {
-	scanner := scanner.NewScanner(src)
+	scanner := NewScanner(src)
 	scanner.Scan()
 
 	parser := NewParser(scanner.Tokens)

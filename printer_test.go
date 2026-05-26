@@ -3,8 +3,6 @@ package tast
 import (
 	"fmt"
 	"testing"
-
-	"github.com/deahtstroke/toml-ast/scanner"
 )
 
 func Test_PrinterSuccess(t *testing.T) {
@@ -90,9 +88,9 @@ func makeKV(keys []string, value Node) *KeyValueNode {
 }
 
 func makeKey(keys ...string) *KeyNode {
-	var tokens []scanner.Token
+	var tokens []Token
 	for _, key := range keys {
-		tokens = append(tokens, scanner.Token{Lexeme: key})
+		tokens = append(tokens, Token{Lexeme: key})
 	}
 	return &KeyNode{
 		Segments: keys,
@@ -105,28 +103,28 @@ func makeVal(value any) Node {
 	case float64:
 		return &FloatNode{
 			Value: v,
-			Token: scanner.Token{
+			Token: Token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}
 	case int64:
 		return &IntegerNode{
 			Value: int64(v),
-			Token: scanner.Token{
+			Token: Token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}
 	case string:
 		return &StringNode{
 			Value: v,
-			Token: scanner.Token{
+			Token: Token{
 				Lexeme: fmt.Sprintf("\"%v\"", v),
 			},
 		}
 	case bool:
 		return &BooleanNode{
 			Value: v,
-			Token: scanner.Token{
+			Token: Token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}
