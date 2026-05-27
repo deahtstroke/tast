@@ -20,7 +20,7 @@ type Node interface {
 }
 
 // Top-most node representation of a TOML file
-// in the CST
+// in the AST
 type Document struct {
 	Content []Node
 }
@@ -38,6 +38,9 @@ type TableNode struct {
 	// The key of the TableNode
 	Key *KeyNode
 
+	// Child nodes that belong to this table
+	Children []Node
+
 	// Any leading comments that may come before the
 	// table itself
 	LeadingComments []*Trivia
@@ -45,7 +48,7 @@ type TableNode struct {
 	// Comment in the same line as the table
 	TrailingComment *Trivia
 
-	// Tokens that need to be parsed
+	// Tokens that make up the table-key
 	Tokens []Token
 }
 

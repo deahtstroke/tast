@@ -1,20 +1,16 @@
 package tast
 
 import (
-	"fmt"
-	"math"
-	"reflect"
 	"testing"
 )
 
-func Test_TomlTables(t *testing.T) {
+func Test_ParseTable(t *testing.T) {
 	tests := map[string]struct {
-		tokens          []Token
-		expectedLiteral string
-		expectedNodes   int
-		shouldErr       bool
-		errorCount      int
-		errorCodes      []ParseErrorCode
+		tokens           []Token
+		expectedDocument *Document
+		shouldErr        bool
+		errorCount       int
+		errorCodes       []ParseErrorCode
 	}{
 		"Table with basic string key": {
 			tokens: []Token{
@@ -37,9 +33,17 @@ func Test_TomlTables(t *testing.T) {
 					Type: EOF,
 				},
 			},
-			expectedLiteral: "[HelloWorld]",
-			expectedNodes:   1,
-			shouldErr:       false,
+			expectedDocument: &Document{
+				Content: []Node{
+					&TableNode{
+						Key: &KeyNode{
+							Segments: []string{"HelloWorld"},
+						},
+						Children: []Node{},
+					},
+				},
+			},
+			shouldErr: false,
 		},
 		"Table with basic dotted string key": {
 			tokens: []Token{
@@ -62,9 +66,8 @@ func Test_TomlTables(t *testing.T) {
 					Type: EOF,
 				},
 			},
-			expectedLiteral: "[\"Hello.World\"]",
-			expectedNodes:   1,
-			shouldErr:       false,
+			expectedDocument: &Document{},
+			shouldErr:        false,
 		},
 		"Table with bare dotted key": {
 			tokens: []Token{
@@ -97,9 +100,7 @@ func Test_TomlTables(t *testing.T) {
 					Type: EOF,
 				},
 			},
-			expectedLiteral: "[hello.world]",
-			expectedNodes:   1,
-			shouldErr:       false,
+			shouldErr: false,
 		},
 		"Table with bare dotted key and basic string": {
 			tokens: []Token{
@@ -132,9 +133,44 @@ func Test_TomlTables(t *testing.T) {
 					Type: EOF,
 				},
 			},
-			expectedLiteral: "[\"hello.world\".bar]",
-			expectedNodes:   1,
-			shouldErr:       false,
+			shouldErr: false,
+		},
+		"Should parse leading comments as part of table": {
+			tokens: []Token{
+				{
+					Type:    COMMENT,
+					Lexeme:  "# This is a useful comment",
+					Literal: string("# This is a useful comment"),
+				},
+				{
+					Type:    LEFT_BRACKET,
+					Lexeme:  "[",
+					Literal: string("["),
+				},
+				{
+					Type:    BASIC_STRING,
+					Lexeme:  "\"hello.world\"",
+					Literal: string("\"hello.world\""),
+				},
+				{
+					Type:    DOT,
+					Lexeme:  ".",
+					Literal: string("."),
+				},
+				{
+					Type:    BARE_KEY,
+					Lexeme:  "bar",
+					Literal: string("bar"),
+				},
+				{
+					Type:    RIGHT_BRACKET,
+					Lexeme:  "]",
+					Literal: string("]"),
+				},
+				{
+					Type: EOF,
+				},
+			},
 		},
 		"Should error on KeyValue node with no assignment after key": {
 			tokens: []Token{
@@ -294,16 +330,132 @@ func Test_TomlTables(t *testing.T) {
 				t.Fatalf("Incorrect parse tree: %+v", parser.errors)
 			}
 
-			length := len(doc.Content)
-			if length != params.expectedNodes {
-				t.Errorf("Incorrect length of nodes for root document node: expected: %d, got: %d", params.expectedNodes, length)
+			if len(doc.Content) != len(params.expectedDocument.Content) {
+				t.Fatalf("expected %d nodes in the document, got %d", len(params.expectedDocument.Content), len(doc.Content))
 			}
 
-			tokenLiteral := doc.Content[0].NodeLexeme()
-			if tokenLiteral != params.expectedLiteral {
-				t.Errorf("Incorrect token literal. Expected: %s. Got: %s", params.expectedLiteral, tokenLiteral)
+			for i := range len(doc.Content) {
+				assertNode(t, params.expectedDocument.Content[i], doc.Content[i])
 			}
 		})
+	}
+}
+
+func Test_KeyNode_Segments(t *testing.T) {
+	keyForms := map[string]struct {
+		keyTokens []Token
+		expected  []string
+	}{
+		"bare key": {
+			keyTokens: []Token{
+				{
+					Type:    BARE_KEY,
+					Literal: string("hello_world"),
+					Lexeme:  "hello_world",
+				},
+			},
+			expected: []string{
+				"hello_world",
+			},
+		},
+	}
+
+	for test, tt := range keyForms {
+		t.Run(test, func(t *testing.T) {
+			parser := NewParser(tt.keyTokens)
+			keyNode := parser.Key()
+
+			if keyNode == nil {
+				t.Fatal("skmething went wrong when parsing the key")
+			}
+
+			if len(keyNode.Segments) != len(tt.expected) {
+				t.Fatalf("expected %d segments, got: %d", len(tt.expected), len(keyNode.Segments))
+			}
+
+			for i := range len(keyNode.Segments) {
+				if keyNode.Segments[i] != tt.expected[i] {
+					t.Fatalf("expected %s, got: %s", keyNode.Segments[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
+func assertNode(t *testing.T, expected, got Node) {
+	t.Helper()
+
+	switch e := expected.(type) {
+	case *TableNode:
+		g, ok := got.(*TableNode)
+		if !ok {
+			t.Fatalf("Expected *TableNode, got %T", got)
+		}
+		assertKeyNode(t, e.Key, g.Key)
+
+		if len(e.Children) != len(g.Children) {
+			t.Fatalf("expected %d children, got: %d", len(e.Children), len(g.Children))
+		}
+		for i := range len(g.Children) {
+			assertNode(t, e.Children[i], g.Children[i])
+		}
+	case *KeyValueNode:
+		g, ok := got.(*KeyValueNode)
+		if !ok {
+			t.Fatalf("expected *KeyValueNode, got %T", got)
+		}
+		assertKeyNode(t, e.Key, g.Key)
+		assertNode(t, e.Value, g.Value)
+	case *StringNode:
+		g, ok := got.(*StringNode)
+		if !ok {
+			t.Fatalf("expected *StringNode, got %T", got)
+		}
+
+		if g.Value != e.Value {
+			t.Fatalf("expected value %s, got %s", e.Value, g.Value)
+		}
+	case *IntegerNode:
+		g, ok := got.(*IntegerNode)
+		if !ok {
+			t.Fatalf("expected *IntegerNode, got %T", got)
+		}
+
+		if g.Value != e.Value {
+			t.Fatalf("expected value %d, got %d", e.Value, g.Value)
+		}
+	case *FloatNode:
+		g, ok := got.(*FloatNode)
+		if !ok {
+			t.Fatalf("expected *FloatNode, got %T", got)
+		}
+
+		if g.Value != e.Value {
+			t.Fatalf("expected value %f, got %f", e.Value, g.Value)
+		}
+	case *BooleanNode:
+		g, ok := got.(*BooleanNode)
+		if !ok {
+			t.Fatalf("expected *BooleanNode, got %T", got)
+		}
+
+		if g.Value != e.Value {
+			t.Fatalf("expected value %t, got %t", e.Value, g.Value)
+		}
+	}
+}
+
+func assertKeyNode(t *testing.T, expected, got *KeyNode) {
+	t.Helper()
+
+	if len(expected.Segments) != len(got.Segments) {
+		t.Fatalf("expected %d segments, got %d", len(expected.Segments), len(got.Segments))
+	}
+
+	for i := range len(got.Segments) {
+		if got.Segments[i] != expected.Segments[i] {
+			t.Fatalf("expected segment %s at index %d to be equal, got: %s", expected.Segments[i], i, got.Segments[i])
+		}
 	}
 }
 
@@ -314,395 +466,4 @@ func containsErrorCode(errs []ParseError, code ParseErrorCode) bool {
 		}
 	}
 	return false
-}
-
-func Test_ParseKeyValue(t *testing.T) {
-	keyForms := []struct {
-		tokens      []Token
-		expectedStr string
-	}{
-		{
-			tokens: []Token{
-				{
-					Type:    BARE_KEY,
-					Literal: string("foo"),
-					Lexeme:  "foo",
-				},
-			},
-			expectedStr: "foo",
-		},
-		{
-			tokens: []Token{
-				{
-					Type:    BASIC_STRING,
-					Literal: string("\"foo\""),
-					Lexeme:  "\"foo\"",
-				},
-			},
-			expectedStr: "\"foo\"",
-		},
-		{
-			tokens: []Token{
-				{
-					Type:    BASIC_STRING,
-					Literal: string("\"foo\""),
-					Lexeme:  "\"foo\"",
-				},
-				{
-					Type: DOT,
-				},
-				{
-					Type:    BASIC_STRING,
-					Literal: string("\"bar\""),
-					Lexeme:  "\"bar\"",
-				},
-			},
-			expectedStr: "\"foo\".\"bar\"",
-		},
-		{
-			tokens: []Token{
-				{
-					Type:    BASIC_STRING,
-					Literal: string("\"foo\""),
-					Lexeme:  "\"foo\"",
-				},
-				{
-					Type: DOT,
-				},
-				{
-					Type:    BARE_KEY,
-					Literal: string("bar"),
-					Lexeme:  "bar",
-				},
-			},
-			expectedStr: "\"foo\".bar",
-		},
-	}
-
-	valueForms := []struct {
-		token       Token
-		expectedStr string
-	}{
-		{
-			token: Token{
-				Type:    INTEGER,
-				Literal: int64(314),
-				Lexeme:  "314",
-			},
-			expectedStr: "314",
-		},
-		{
-			token: Token{
-				Type:    INTEGER,
-				Literal: int64(-314),
-				Lexeme:  "-314",
-			},
-			expectedStr: "-314",
-		},
-		{
-			token: Token{
-				Type:    FLOAT,
-				Literal: float64(3.14),
-				Lexeme:  "3.14",
-			},
-			expectedStr: "3.14",
-		},
-		{
-			token: Token{
-				Type:    FLOAT,
-				Literal: float64(-3.14),
-				Lexeme:  "-3.14",
-			},
-			expectedStr: "-3.14",
-		},
-		{
-			token: Token{
-				Type:    BASIC_STRING,
-				Literal: string("\"Roses are red, Violets are blue\""),
-				Lexeme:  "\"Roses are red, Violets are blue\"",
-			},
-			expectedStr: "\"Roses are red, Violets are blue\"",
-		},
-		{
-			token: Token{
-				Type:    TRUE,
-				Literal: bool(true),
-				Lexeme:  "true",
-			},
-			expectedStr: "true",
-		},
-		{
-			token: Token{
-				Type:    FALSE,
-				Literal: bool(false),
-				Lexeme:  "false",
-			},
-			expectedStr: "false",
-		},
-	}
-
-	for _, key := range keyForms {
-		for _, value := range valueForms {
-			testName := fmt.Sprintf("%s = %s", key.expectedStr, value.expectedStr)
-			t.Run(testName, func(t *testing.T) {
-				tokens := []Token{}
-				tokens = append(tokens, key.tokens...)
-				tokens = append(tokens, Token{Type: EQUAL})
-				tokens = append(tokens, value.token)
-				tokens = append(tokens, Token{Type: EOF})
-
-				parser := NewParser(tokens)
-				doc, errs := parser.parse()
-				if len(errs) != 0 {
-					t.Fatalf("Not expecting errors, got: %+v", errs)
-				}
-
-				actual, ok := doc.Content[0].(*KeyValueNode)
-				if !ok {
-					t.Fatalf("Not a KeyValueNode instance")
-				}
-
-				expected := fmt.Sprintf("%s = %s", key.expectedStr, value.expectedStr)
-				if actual.NodeLexeme() != expected {
-					t.Fatalf("Non matching. Expected: %s. Got: %s", expected, actual.NodeLexeme())
-				}
-			})
-		}
-	}
-}
-
-func Test_Table(t *testing.T) {
-	tokens := []Token{
-		{
-			Type:    BASIC_STRING,
-			Lexeme:  "HelloWorld",
-			Literal: "HelloWorld",
-			Line:    0,
-		},
-		{
-			Type:    RIGHT_BRACKET,
-			Lexeme:  "[",
-			Literal: "[",
-			Line:    0,
-		},
-	}
-	p := NewParser(tokens)
-	tableNode := p.Table()
-	if tableNode == nil {
-		t.Fatalf("Parse tree is incorrect")
-	}
-
-	keyNode := tableNode.Key
-	if keyNode.Segments[0] != "HelloWorld" {
-		t.Errorf("Wrong key value. Expecting: HelloWorld. Got: %s", tableNode.Key.NodeLiteral())
-	}
-}
-
-func Test_Value(t *testing.T) {
-	tests := map[string]struct {
-		tokens      []Token
-		expNodeType any
-		expValue    any
-	}{
-		"negative integer": {
-			tokens: []Token{
-				{
-					Type:    MINUS,
-					Lexeme:  "-",
-					Literal: "-",
-					Line:    1,
-				},
-				{
-					Type:    INTEGER,
-					Lexeme:  "1234",
-					Literal: int64(1234),
-					Line:    1,
-				},
-			},
-			expNodeType: &IntegerNode{},
-			expValue:    int64(-1234),
-		},
-		"positive integer": {
-			tokens: []Token{
-				{
-					Type:    PLUS,
-					Lexeme:  "+",
-					Literal: "+",
-					Line:    1,
-				},
-				{
-					Type:    INTEGER,
-					Lexeme:  "12341",
-					Literal: int64(12341),
-					Line:    1,
-				},
-			},
-			expNodeType: &IntegerNode{},
-			expValue:    int64(12341),
-		},
-		"unsigned integer": {
-			tokens: []Token{
-				{
-					Type:    INTEGER,
-					Lexeme:  "12341",
-					Literal: int64(12341),
-					Line:    1,
-				},
-			},
-			expNodeType: &IntegerNode{},
-			expValue:    int64(12341),
-		},
-		"negative floating point": {
-			tokens: []Token{
-				{
-					Type:    MINUS,
-					Lexeme:  "-",
-					Literal: "-",
-					Line:    0,
-				},
-				{
-					Type:    FLOAT,
-					Lexeme:  "3.12451",
-					Literal: float64(3.12451),
-					Line:    0,
-				},
-			},
-			expNodeType: &FloatNode{},
-			expValue:    float64(-3.12451),
-		},
-		"positive floating point": {
-			tokens: []Token{
-				{
-					Type:    PLUS,
-					Lexeme:  "+",
-					Literal: "+",
-					Line:    0,
-				},
-				{
-					Type:    FLOAT,
-					Lexeme:  "3.12451",
-					Literal: float64(3.12451),
-					Line:    0,
-				},
-			},
-			expNodeType: &FloatNode{},
-			expValue:    float64(3.12451),
-		},
-		"unsigned floating point": {
-			tokens: []Token{
-				{
-					Type:    FLOAT,
-					Lexeme:  "3.12451",
-					Literal: float64(3.12451),
-					Line:    0,
-				},
-			},
-			expNodeType: &FloatNode{},
-			expValue:    float64(3.12451),
-		},
-		"negative infinity": {
-			tokens: []Token{
-				{
-					Type:    MINUS,
-					Lexeme:  "-",
-					Literal: "-",
-					Line:    0,
-				},
-				{
-					Type:    INF,
-					Lexeme:  "inf",
-					Literal: nil,
-					Line:    0,
-				},
-			},
-			expNodeType: &IntegerNode{},
-			expValue:    -int64(math.MaxInt64),
-		},
-		"positive infinity": {
-			tokens: []Token{
-				{
-					Type:    PLUS,
-					Lexeme:  "+",
-					Literal: "+",
-					Line:    0,
-				},
-				{
-					Type:    INF,
-					Lexeme:  "inf",
-					Literal: nil,
-					Line:    0,
-				},
-			},
-			expNodeType: &IntegerNode{},
-			expValue:    int64(math.MaxInt64),
-		},
-		"unsigned infinity": {
-			tokens: []Token{
-				{
-					Type:    INF,
-					Lexeme:  "inf",
-					Literal: nil,
-					Line:    0,
-				},
-			},
-			expNodeType: &IntegerNode{},
-			expValue:    int64(math.MaxInt64),
-		},
-		"false": {
-			tokens: []Token{
-				{
-					Type:   FALSE,
-					Lexeme: "false",
-					Line:   0,
-				},
-			},
-			expNodeType: &BooleanNode{},
-			expValue:    false,
-		},
-		"true": {
-			tokens: []Token{
-				{
-					Type:   TRUE,
-					Lexeme: "true",
-					Line:   0,
-				},
-			},
-			expNodeType: &BooleanNode{},
-			expValue:    true,
-		},
-		"basic string": {
-			tokens: []Token{
-				{
-					Type:    BASIC_STRING,
-					Lexeme:  "hello world!",
-					Literal: "hello world!",
-					Line:    0,
-				},
-			},
-			expNodeType: &StringNode{},
-			expValue:    "hello world!",
-		},
-	}
-
-	for test, tt := range tests {
-		t.Run(test, func(t *testing.T) {
-			parser := NewParser(tt.tokens)
-			node := parser.value()
-			if node == nil {
-				t.Fatalf("Incorrect parse tree")
-			}
-
-			gotType := reflect.TypeOf(node)
-			expType := reflect.TypeOf(tt.expNodeType)
-
-			if gotType != expType {
-				t.Fatalf("Expected node type %s, got %s", expType, gotType)
-			}
-
-			gotValue := reflect.ValueOf(node).Elem().FieldByName("Value").Interface()
-			if gotValue != tt.expValue {
-				t.Fatalf("expected value %v (%T), got %v (%T)", tt.expValue, tt.expValue, gotValue, gotValue)
-			}
-		})
-	}
 }

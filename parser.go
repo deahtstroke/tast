@@ -1,8 +1,11 @@
 package tast
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"slices"
+	"strings"
 )
 
 type Parser struct {
@@ -10,7 +13,7 @@ type Parser struct {
 	current int
 
 	errors []ParseError
-	keys   map[string]bool
+	keys   map[string]struct{}
 }
 
 func NewParser(tokens []Token) *Parser {
@@ -19,8 +22,18 @@ func NewParser(tokens []Token) *Parser {
 	}
 }
 
-// Starts parsing tokens, reports any errors if
-// the length of errors is non-zero
+func (p *Parser) registerKey(key *KeyNode) error {
+	literalKey := strings.Join(key.Segments, ".")
+	if _, exists := p.keys[literalKey]; exists {
+		msg := fmt.Sprintf("Duplicate key exists with signature %s", literalKey)
+		p.addParseErrorNoTokens(msg, ErrDuplicateKey)
+		return errors.New(msg)
+	}
+
+	p.keys[literalKey] = struct{}{}
+	return nil
+}
+
 func (p *Parser) parse() (*Document, []ParseError) {
 	documentNode := Document{}
 	for !p.isAtEnd() {
@@ -43,6 +56,10 @@ func (p *Parser) Synchronize() {
 
 		p.advance()
 	}
+}
+
+func (p *Parser) addParseErrorNoTokens(msg string, code ParseErrorCode) {
+	p.errors = append(p.errors, ParseError{Message: msg, Code: code})
 }
 
 func (p *Parser) addParseError(token Token, msg string, code ParseErrorCode) {
@@ -72,6 +89,10 @@ func (p *Parser) parseEntry() Node {
 func (p *Parser) KeyValue() *KeyValueNode {
 	key := p.Key()
 	if key == nil {
+		return nil
+	}
+
+	if err := p.registerKey(key); err != nil {
 		return nil
 	}
 
@@ -196,7 +217,7 @@ func createFloatNode(p *Parser, operator TokenType) Node {
 // table -> LEFT_BRACKET  RIGHT_BRACKET
 func (p *Parser) Table() *TableNode {
 	if !p.Match(BARE_KEY, BASIC_STRING) {
-		p.addParseError(p.peek(), "expected a key after left-bracket", ErrMalformedTableKey)
+		p.addParseError(p.peek(), "Expected a key after left-bracket", ErrMalformedTableKey)
 		return nil
 	}
 
@@ -207,8 +228,23 @@ func (p *Parser) Table() *TableNode {
 		return nil
 	}
 
+	outer := p.keys
+	p.keys = make(map[string]struct{})
+	defer func() {
+		p.keys = outer
+	}()
+
+	var children []Node
+	for !p.isAtEnd() && !p.check(LEFT_BRACKET) {
+		kv := p.KeyValue()
+		if kv != nil {
+			children = append(children, kv)
+		}
+	}
+
 	return &TableNode{
-		Key: key,
+		Key:      key,
+		Children: children,
 	}
 }
 
@@ -216,14 +252,21 @@ func (p *Parser) Table() *TableNode {
 // key -> (BARE_KEY | STRING) (DOT (BARE_KEY | STRING))*
 func (p *Parser) Key() *KeyNode {
 	curr := p.previous()
+
+	literal, ok := curr.Literal.(string)
+	if !ok {
+		p.addParseError(p.peek(), fmt.Sprintf("Unable to convert token literal %s to string", curr.Lexeme), ErrParsingString)
+		return nil
+	}
+
 	node := &KeyNode{
-		Segments: []string{curr.Lexeme},
+		Segments: []string{literal},
 		Tokens:   []Token{curr},
 	}
 
 	for p.Match(DOT) {
 		if !p.Match(BASIC_STRING, BARE_KEY) {
-			p.addParseError(p.peek(), "expected string or barekey after dot '.'", ErrNoKeyAfterDot)
+			p.addParseError(p.peek(), "Expected string or bare key after dot '.'", ErrNoKeyAfterDot)
 			return nil
 		}
 
@@ -244,6 +287,7 @@ func (p *Parser) Match(types ...TokenType) bool {
 	return false
 }
 
+// Checks the current token for the specific type without consuming it
 func (p *Parser) check(token TokenType) bool {
 	if p.isAtEnd() {
 		return false

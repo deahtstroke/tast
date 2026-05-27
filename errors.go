@@ -15,6 +15,7 @@ const (
 	ErrParsingString
 	ErrParsingInt
 	ErrParsingFloat
+	ErrDuplicateKey
 )
 
 type ParseError struct {
@@ -41,6 +42,8 @@ func (c ParseErrorCode) String() string {
 		return "ErrParsingInt"
 	case ErrParsingFloat:
 		return "ErrParsingFloat"
+	case ErrDuplicateKey:
+		return "ErrDuplicateKey"
 	default:
 		return "Unknown error code"
 	}
