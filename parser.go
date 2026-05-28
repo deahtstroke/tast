@@ -68,18 +68,29 @@ func (p *Parser) addParseError(token Token, msg string, code ParseErrorCode) {
 }
 
 func (p *Parser) parseEntry() Node {
+	var leading []Trivia
+	for p.check(COMMENT) {
+		comment := p.advance()
+		leading = append(leading, Trivia{Lexeme: comment.Lexeme})
+	}
+
 	switch {
 	case p.Match(LEFT_BRACKET):
 		node := p.Table()
 		if node == nil {
 			p.Synchronize()
+		} else {
+			node.LeadingComments = leading
 		}
 		return node
 	case p.Match(BARE_KEY, BASIC_STRING, LITERAL_STRING):
 		node := p.KeyValue()
 		if node == nil {
 			p.Synchronize()
+		} else {
+			node.LeadingComments = leading
 		}
+
 		return node
 	default:
 		p.advance()
@@ -88,10 +99,12 @@ func (p *Parser) parseEntry() Node {
 }
 
 func (p *Parser) KeyValue() *KeyValueNode {
+	keyValueNode := &KeyValueNode{}
 	key := p.Key()
 	if key == nil {
 		return nil
 	}
+	keyValueNode.Key = key
 
 	if err := p.registerKey(key); err != nil {
 		return nil
@@ -107,11 +120,14 @@ func (p *Parser) KeyValue() *KeyValueNode {
 		p.addParseError(p.peek(), "unspecified value for after key", ErrUnspecifiedValueForKey)
 		return nil
 	}
+	keyValueNode.Value = value
 
-	return &KeyValueNode{
-		Key:   key,
-		Value: value,
+	if p.check(COMMENT) {
+		comment := p.advance()
+		keyValueNode.TrailingComment = &Trivia{Lexeme: comment.Lexeme}
 	}
+
+	return keyValueNode
 }
 
 func (p *Parser) value() Node {
@@ -218,18 +234,30 @@ func createFloatNode(p *Parser, operator TokenType) Node {
 // Parse a TOML table which follows the grammar rule:
 // table -> LEFT_BRACKET  RIGHT_BRACKET
 func (p *Parser) Table() *TableNode {
+	tableNode := &TableNode{}
 	if !p.Match(BARE_KEY, BASIC_STRING) {
 		p.addParseError(p.peek(), "Expected a key after left-bracket", ErrMalformedTableKey)
 		return nil
 	}
 
 	key := p.Key()
+	if key == nil {
+		return nil
+	}
+	tableNode.Key = key
 
 	if !p.Match(RIGHT_BRACKET) {
 		p.addParseError(p.peek(), "Expecting closing bracket ']' after key definition", ErrMissingClosingBracket)
 		return nil
 	}
 
+	// Trailing comment
+	if p.check(COMMENT) {
+		comment := p.advance()
+		tableNode.TrailingComment = &Trivia{Lexeme: comment.Lexeme}
+	}
+
+	// Check duplicates in the current context
 	outer := p.keys
 	p.keys = make(map[string]struct{})
 	defer func() {
@@ -244,10 +272,8 @@ func (p *Parser) Table() *TableNode {
 		}
 	}
 
-	return &TableNode{
-		Key:      key,
-		Children: children,
-	}
+	tableNode.Children = children
+	return tableNode
 }
 
 // Parse a TOML key which follows the grammar rule:

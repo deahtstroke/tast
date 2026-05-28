@@ -59,7 +59,7 @@ func makeTable(keyNode *KeyNode, opts ...TableOption) *TableNode {
 func withLeading(comments []string) TableOption {
 	return func(tn *TableNode) {
 		for _, c := range comments {
-			tn.LeadingComments = append(tn.LeadingComments, makeTrivia(c))
+			tn.LeadingComments = append(tn.LeadingComments, *makeTrivia(c))
 		}
 	}
 }

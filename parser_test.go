@@ -24,8 +24,8 @@ func Test_ParseTable(t *testing.T) {
 			expectedDocument: &Document{
 				Content: []Node{
 					&KeyValueNode{
-						LeadingComments: []Trivia{{Lexeme: "This is a full-line comment"}},
-						TrailingComment: Trivia{Lexeme: "This is a comment at the end of a line"},
+						LeadingComments: []Trivia{{Lexeme: "# This is a full-line comment"}},
+						TrailingComment: &Trivia{Lexeme: "# This is a comment at the end of a line"},
 						Key: &KeyNode{
 							Segments: []string{"key"},
 						},
@@ -39,6 +39,24 @@ func Test_ParseTable(t *testing.T) {
 						},
 						Value: &StringNode{
 							Value: "# This is not a comment",
+						},
+					},
+				},
+			},
+		},
+		"Accumulated comments with tables": {
+			tokens: InitializeTokens(
+				Comment("# This is a comment"),
+				Comment("# This is another comment"),
+				LeftBracket(), BareKey("key"), RightBracket(), Comment("# This is in the same line as the table"),
+			),
+			expectedDocument: &Document{
+				Content: []Node{
+					&TableNode{
+						LeadingComments: []Trivia{{Lexeme: "# This is a comment"}, {Lexeme: "# This is another comment"}},
+						TrailingComment: &Trivia{"# This is in the same line as the table"},
+						Key: &KeyNode{
+							Segments: []string{"key"},
 						},
 					},
 				},
@@ -285,6 +303,14 @@ func Test_ParseTable(t *testing.T) {
 func assertNode(t *testing.T, expected, got Node) {
 	t.Helper()
 
+	if expected == nil {
+		t.Fatalf("'Expected' Node is nil")
+	}
+
+	if got == nil {
+		t.Fatalf("'Got' Node is nil")
+	}
+
 	switch e := expected.(type) {
 	case *TableNode:
 		g, ok := got.(*TableNode)
@@ -301,6 +327,17 @@ func assertNode(t *testing.T, expected, got Node) {
 		for i := range len(g.Children) {
 			assertNode(t, e.Children[i], g.Children[i])
 		}
+
+		assertComments(t, e.LeadingComments, g.LeadingComments, "leading")
+		if e.TrailingComment != nil {
+			if g.TrailingComment.Lexeme == "" {
+				t.Fatalf("expected trailing comment %q, got \"\"", e.TrailingComment.Lexeme)
+			}
+
+			if e.TrailingComment.Lexeme != g.TrailingComment.Lexeme {
+				t.Errorf("trailing comment: expected %q, got %q", e.TrailingComment.Lexeme, g.TrailingComment.Lexeme)
+			}
+		}
 	case *KeyValueNode:
 		g, ok := got.(*KeyValueNode)
 		if !ok {
@@ -308,6 +345,16 @@ func assertNode(t *testing.T, expected, got Node) {
 		}
 		assertKeyNode(t, e.Key, g.Key)
 		assertNode(t, e.Value, g.Value)
+		assertComments(t, e.LeadingComments, g.LeadingComments, "leading")
+		if e.TrailingComment != nil {
+			if g.TrailingComment == nil {
+				t.Fatal("expected trailing comment, got nil")
+			}
+
+			if e.TrailingComment.Lexeme != g.TrailingComment.Lexeme {
+				t.Errorf("trailing comment: expected %q, got %q", e.TrailingComment.Lexeme, g.TrailingComment.Lexeme)
+			}
+		}
 	case *StringNode:
 		g, ok := got.(*StringNode)
 		if !ok {
@@ -344,6 +391,8 @@ func assertNode(t *testing.T, expected, got Node) {
 		if g.Value != e.Value {
 			t.Fatalf("expected value %t, got %t", e.Value, g.Value)
 		}
+	default:
+		t.Fatalf("Unrecognized Node type %T", e)
 	}
 }
 
@@ -357,6 +406,24 @@ func assertKeyNode(t *testing.T, expected, got *KeyNode) {
 	for i := range len(got.Segments) {
 		if got.Segments[i] != expected.Segments[i] {
 			t.Fatalf("expected segment %s at index %d to be equal, got: %s", expected.Segments[i], i, got.Segments[i])
+		}
+	}
+}
+
+func assertComments(t *testing.T, expected, got []Trivia, label string) {
+	t.Helper()
+
+	if expected == nil {
+		return
+	}
+
+	if len(expected) != len(got) {
+		t.Fatalf("%s: expected %d comments, got %d", label, len(expected), len(got))
+	}
+
+	for i := range len(expected) {
+		if expected[i].Lexeme != got[i].Lexeme {
+			t.Fatalf("%s comment %d: expected %q, got %q", label, i, expected[i], got[i])
 		}
 	}
 }

@@ -43,7 +43,7 @@ type TableNode struct {
 
 	// Any leading comments that may come before the
 	// table itself
-	LeadingComments []*Trivia
+	LeadingComments []Trivia
 
 	// Comment in the same line as the table
 	TrailingComment *Trivia
@@ -95,7 +95,7 @@ type KeyValueNode struct {
 	LeadingComments []Trivia
 
 	// Comment at the end of the line in a key-value node
-	TrailingComment Trivia
+	TrailingComment *Trivia
 }
 
 func (n *KeyValueNode) NodeLexeme() string {
