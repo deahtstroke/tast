@@ -14,6 +14,10 @@ itself does not support using Go's standard interfaces for readers and writers, 
 TOML configurations that can be parsed in one go without relying on internal buffering
 and look-ahead logic.
 
+> [!WARNING]
+> The library is as of time of writing not 100% compliant with TOML spec v1.1.0
+> Use at your own discretion
+
 ## Installation
 
     go get github.com/deahtstroke/tast
@@ -32,3 +36,4 @@ doc.WriteFile("config.toml")
 ## Status
 
 Early development — API may shift while on `v0.x.x`.
+
