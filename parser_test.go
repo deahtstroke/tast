@@ -1,6 +1,7 @@
 package tast
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -12,300 +13,236 @@ func Test_ParseTable(t *testing.T) {
 		errorCount       int
 		errorCodes       []ParseErrorCode
 	}{
-		"Table with basic string key": {
-			tokens: []Token{
-				{
-					Type:    LEFT_BRACKET,
-					Lexeme:  "[",
-					Literal: string("["),
-				},
-				{
-					Type:    BARE_KEY,
-					Lexeme:  "HelloWorld",
-					Literal: string("HelloWorld"),
-				},
-				{
-					Type:    RIGHT_BRACKET,
-					Lexeme:  "]",
-					Literal: string("]"),
-				},
-				{
-					Type: EOF,
-				},
-			},
+		// Comments
+		// TODO: This test is wrong because it doesn't assert comments
+		"General comments with key-value pairs": {
+			tokens: InitializeTokens(
+				Comment("# This is a full-line comment"),
+				BareKey("key"), Equal(), BasicString("value"), Comment("# This is a comment at the end of a line"),
+				BareKey("another"), Equal(), BasicString("# This is not a comment"),
+			),
 			expectedDocument: &Document{
 				Content: []Node{
-					&TableNode{
+					&KeyValueNode{
+						LeadingComments: []Trivia{{Lexeme: "This is a full-line comment"}},
+						TrailingComment: Trivia{Lexeme: "This is a comment at the end of a line"},
 						Key: &KeyNode{
-							Segments: []string{"HelloWorld"},
+							Segments: []string{"key"},
 						},
-						Children: []Node{},
+						Value: &StringNode{
+							Value: "value",
+						},
+					},
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"another"},
+						},
+						Value: &StringNode{
+							Value: "# This is not a comment",
+						},
 					},
 				},
 			},
-			shouldErr: false,
 		},
-		"Table with basic dotted string key": {
-			tokens: []Token{
-				{
-					Type:    LEFT_BRACKET,
-					Lexeme:  "[",
-					Literal: string("["),
-				},
-				{
-					Type:    BASIC_STRING,
-					Lexeme:  "\"Hello.World\"",
-					Literal: string("\"Hello.World\""),
-				},
-				{
-					Type:    RIGHT_BRACKET,
-					Lexeme:  "]",
-					Literal: string("]"),
-				},
-				{
-					Type: EOF,
-				},
-			},
-			expectedDocument: &Document{},
-			shouldErr:        false,
-		},
-		"Table with bare dotted key": {
-			tokens: []Token{
-				{
-					Type:    LEFT_BRACKET,
-					Lexeme:  "[",
-					Literal: string("["),
-				},
-				{
-					Type:    BARE_KEY,
-					Lexeme:  "hello",
-					Literal: string("hello"),
-				},
-				{
-					Type:    DOT,
-					Lexeme:  ".",
-					Literal: string("."),
-				},
-				{
-					Type:    BARE_KEY,
-					Lexeme:  "world",
-					Literal: string("world"),
-				},
-				{
-					Type:    RIGHT_BRACKET,
-					Lexeme:  "]",
-					Literal: string("]"),
-				},
-				{
-					Type: EOF,
-				},
-			},
-			shouldErr: false,
-		},
-		"Table with bare dotted key and basic string": {
-			tokens: []Token{
-				{
-					Type:    LEFT_BRACKET,
-					Lexeme:  "[",
-					Literal: string("["),
-				},
-				{
-					Type:    BASIC_STRING,
-					Lexeme:  "\"hello.world\"",
-					Literal: string("\"hello.world\""),
-				},
-				{
-					Type:    DOT,
-					Lexeme:  ".",
-					Literal: string("."),
-				},
-				{
-					Type:    BARE_KEY,
-					Lexeme:  "bar",
-					Literal: string("bar"),
-				},
-				{
-					Type:    RIGHT_BRACKET,
-					Lexeme:  "]",
-					Literal: string("]"),
-				},
-				{
-					Type: EOF,
-				},
-			},
-			shouldErr: false,
-		},
-		"Should parse leading comments as part of table": {
-			tokens: []Token{
-				{
-					Type:    COMMENT,
-					Lexeme:  "# This is a useful comment",
-					Literal: string("# This is a useful comment"),
-				},
-				{
-					Type:    LEFT_BRACKET,
-					Lexeme:  "[",
-					Literal: string("["),
-				},
-				{
-					Type:    BASIC_STRING,
-					Lexeme:  "\"hello.world\"",
-					Literal: string("\"hello.world\""),
-				},
-				{
-					Type:    DOT,
-					Lexeme:  ".",
-					Literal: string("."),
-				},
-				{
-					Type:    BARE_KEY,
-					Lexeme:  "bar",
-					Literal: string("bar"),
-				},
-				{
-					Type:    RIGHT_BRACKET,
-					Lexeme:  "]",
-					Literal: string("]"),
-				},
-				{
-					Type: EOF,
+		// Key-value pair
+		"Basic key-value pair": {
+			tokens: InitializeTokens(
+				BareKey("key"), Equal(), BasicString("value"),
+			),
+			expectedDocument: &Document{
+				Content: []Node{
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"key"},
+						},
+						Value: &StringNode{
+							Value: "value",
+						},
+					},
 				},
 			},
 		},
-		"Should error on KeyValue node with no assignment after key": {
-			tokens: []Token{
-				{
-					Type:    BARE_KEY,
-					Lexeme:  "hello",
-					Literal: string("hello"),
-				},
-				{
-					Type:    FLOAT,
-					Lexeme:  "3.14",
-					Literal: float64(3.14),
-				},
-				{
-					Type: EOF,
-				},
-			},
+		"Should error on unspecified values": {
+			tokens: InitializeTokens(
+				BareKey("key"), Equal(),
+			),
 			shouldErr:  true,
 			errorCount: 1,
-			errorCodes: []ParseErrorCode{ErrMissingAssignmentAfterKey},
+			errorCodes: []ParseErrorCode{ErrUnspecifiedValueForKey},
 		},
-		"Should error on KeyValue node with missing key after dot": {
-			tokens: []Token{
-				{
-					Type:    BARE_KEY,
-					Lexeme:  "hello",
-					Literal: string("hello"),
-				},
-				{
-					Type:    DOT,
-					Lexeme:  ".",
-					Literal: string("."),
-				},
-				{
-					Type:    EQUAL,
-					Lexeme:  "=",
-					Literal: string("="),
-				},
-				{
-					Type:    FLOAT,
-					Lexeme:  "3.14",
-					Literal: float64(3.14),
-				},
-				{
-					Type: EOF,
+		// Keys
+		"BareKeys": {
+			tokens: InitializeTokens(
+				BareKey("key"), Equal(), BasicString("value"),
+				BareKey("bare_key"), Equal(), BasicString("value"),
+				BareKey("bare-key"), Equal(), BasicString("value"),
+				BareKey("1234"), Equal(), BasicString("value"),
+			),
+			expectedDocument: &Document{
+				Content: []Node{
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"key"},
+						},
+						Value: &StringNode{
+							Value: "value",
+						},
+					},
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"bare_key"},
+						},
+						Value: &StringNode{
+							Value: "value",
+						},
+					},
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"bare-key"},
+						},
+						Value: &StringNode{
+							Value: "value",
+						},
+					},
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"1234"},
+						},
+						Value: &StringNode{
+							Value: "value",
+						},
+					},
 				},
 			},
+		},
+		"Quoted Keys": {
+			tokens: InitializeTokens(
+				BasicString("127.0.0.1"), Equal(), BasicString("value"),
+				BasicString("character encoding"), Equal(), BasicString("value"),
+				LiteralString("key2"), Equal(), BasicString("value"),
+				LiteralString("ʎǝʞ"), Equal(), BasicString("value"),
+				LiteralString("quoted \"value\""), Equal(), BasicString("value")),
+			expectedDocument: &Document{
+				Content: []Node{
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"127.0.0.1"},
+						},
+						Value: &StringNode{
+							Value: "value",
+						},
+					},
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"character encoding"},
+						},
+						Value: &StringNode{
+							Value: "value",
+						},
+					},
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"key2"},
+						},
+						Value: &StringNode{
+							Value: "value",
+						},
+					},
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"ʎǝʞ"},
+						},
+						Value: &StringNode{
+							Value: "value",
+						},
+					},
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"quoted \"value\""},
+						},
+						Value: &StringNode{
+							Value: "value",
+						},
+					},
+				},
+			},
+		},
+		"Dotted-keys": {
+			tokens: InitializeTokens(
+				BareKey("name"), Equal(), BasicString("Orange"),
+				BareKey("physical"), Dot(), BasicString("color"), Equal(), BasicString("orange"),
+				BareKey("physical"), Dot(), BasicString("shape"), Equal(), BasicString("round"),
+				BareKey("site"), Dot(), BasicString("google.com"), Equal(), True(),
+			),
+			expectedDocument: &Document{
+				Content: []Node{
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"name"},
+						},
+						Value: &StringNode{
+							Value: "Orange",
+						},
+					},
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"physical", "color"},
+						},
+						Value: &StringNode{
+							Value: "orange",
+						},
+					},
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"physical", "shape"},
+						},
+						Value: &StringNode{
+							Value: "round",
+						},
+					},
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"site", "google.com"},
+						},
+						Value: &BooleanNode{
+							Value: true,
+						},
+					},
+				},
+			},
+		},
+		"Duplicate keys should error": {
+			tokens: InitializeTokens(
+				BareKey("name"), Equal(), BasicString("Tom"),
+				BareKey("name"), Equal(), BasicString("Pradyun"),
+			),
 			shouldErr:  true,
 			errorCount: 1,
-			errorCodes: []ParseErrorCode{ErrNoKeyAfterDot},
+			errorCodes: []ParseErrorCode{ErrDuplicateKey},
 		},
-		"Should report only missing key after dot even with no assignment": {
-			tokens: []Token{
-				{
-					Type:    BARE_KEY,
-					Lexeme:  "hello",
-					Literal: string("hello"),
-				},
-				{
-					Type:    DOT,
-					Lexeme:  ".",
-					Literal: string("."),
-				},
-				{
-					Type:    FLOAT,
-					Lexeme:  "3.14",
-					Literal: float64(3.14),
-				},
-				{
-					Type: EOF,
-				},
-			},
+		"Barekeys and quotted keys are equivalent on duplicate check": {
+			tokens: InitializeTokens(
+				BareKey("spelling"), Equal(), BasicString("favorite"),
+				BasicString("spelling"), Equal(), BasicString("favourite"),
+			),
 			shouldErr:  true,
 			errorCount: 1,
-			errorCodes: []ParseErrorCode{ErrNoKeyAfterDot},
+			errorCodes: []ParseErrorCode{ErrDuplicateKey},
 		},
-		"Should report error when key is malformed": {
-			tokens: []Token{
-				{
-					Type:    LEFT_BRACKET,
-					Lexeme:  "[",
-					Literal: string("["),
-				},
-				{
-					Type:    EQUAL,
-					Lexeme:  "=",
-					Literal: string("="),
-				},
-				{
-					Type: EOF,
+		"Valid but discouraged key": {
+			tokens: InitializeTokens(BareKey("3"), Dot(), BareKey("14159"), Equal(), BasicString("pi")),
+			expectedDocument: &Document{
+				Content: []Node{
+					&KeyValueNode{
+						Key: &KeyNode{
+							Segments: []string{"3", "14159"},
+						},
+						Value: &StringNode{
+							Value: "pi",
+						},
+					},
 				},
 			},
-			shouldErr:  true,
-			errorCount: 1,
-			errorCodes: []ParseErrorCode{ErrMalformedTableKey},
-		},
-		"Should report both key is malformed and no key after dot": {
-			tokens: []Token{
-				{
-					Type:    LEFT_BRACKET,
-					Lexeme:  "[",
-					Literal: string("["),
-				},
-				{
-					Type:    EQUAL,
-					Lexeme:  "=",
-					Literal: string("="),
-				},
-				{
-					Type:    NEW_LINE,
-					Lexeme:  "\n",
-					Literal: string("\n"),
-				},
-				{
-					Type:    BARE_KEY,
-					Lexeme:  "hello",
-					Literal: string("hello"),
-				},
-				{
-					Type:    DOT,
-					Lexeme:  ".",
-					Literal: string("."),
-				},
-				{
-					Type:    FLOAT,
-					Lexeme:  "3.14",
-					Literal: float64(3.14),
-				},
-				{
-					Type: EOF,
-				},
-			},
-			shouldErr:  true,
-			errorCount: 2,
-			errorCodes: []ParseErrorCode{ErrMalformedTableKey, ErrNoKeyAfterDot},
 		},
 	}
 
@@ -314,20 +251,24 @@ func Test_ParseTable(t *testing.T) {
 			parser := NewParser(params.tokens)
 			doc, errs := parser.parse()
 			if params.shouldErr {
+				if len(errs) <= 0 {
+					t.Fatalf("expecting errors, found none")
+				}
+
 				if len(errs) != params.errorCount {
-					t.Fatalf("Expecting %d errors, found %d: %v", params.errorCount, len(errs), errs)
+					t.Fatalf("expecting %d errors, found %d: %v", params.errorCount, len(errs), errs)
 				}
 
 				for _, code := range params.errorCodes {
 					if !containsErrorCode(errs, code) {
-						t.Fatalf("Expeced error code %v but was not found in %v", code, errs)
+						t.Fatalf("expected error code %v but was not found in %v", code, errs)
 					}
 				}
 				return
 			}
 
 			if len(errs) != 0 {
-				t.Fatalf("Incorrect parse tree: %+v", parser.errors)
+				t.Fatalf("incorrect parse tree: %+v", parser.errors)
 			}
 
 			if len(doc.Content) != len(params.expectedDocument.Content) {
@@ -336,47 +277,6 @@ func Test_ParseTable(t *testing.T) {
 
 			for i := range len(doc.Content) {
 				assertNode(t, params.expectedDocument.Content[i], doc.Content[i])
-			}
-		})
-	}
-}
-
-func Test_KeyNode_Segments(t *testing.T) {
-	keyForms := map[string]struct {
-		keyTokens []Token
-		expected  []string
-	}{
-		"bare key": {
-			keyTokens: []Token{
-				{
-					Type:    BARE_KEY,
-					Literal: string("hello_world"),
-					Lexeme:  "hello_world",
-				},
-			},
-			expected: []string{
-				"hello_world",
-			},
-		},
-	}
-
-	for test, tt := range keyForms {
-		t.Run(test, func(t *testing.T) {
-			parser := NewParser(tt.keyTokens)
-			keyNode := parser.Key()
-
-			if keyNode == nil {
-				t.Fatal("skmething went wrong when parsing the key")
-			}
-
-			if len(keyNode.Segments) != len(tt.expected) {
-				t.Fatalf("expected %d segments, got: %d", len(tt.expected), len(keyNode.Segments))
-			}
-
-			for i := range len(keyNode.Segments) {
-				if keyNode.Segments[i] != tt.expected[i] {
-					t.Fatalf("expected %s, got: %s", keyNode.Segments[i], tt.expected[i])
-				}
 			}
 		})
 	}
@@ -391,11 +291,13 @@ func assertNode(t *testing.T, expected, got Node) {
 		if !ok {
 			t.Fatalf("Expected *TableNode, got %T", got)
 		}
+
 		assertKeyNode(t, e.Key, g.Key)
 
 		if len(e.Children) != len(g.Children) {
 			t.Fatalf("expected %d children, got: %d", len(e.Children), len(g.Children))
 		}
+
 		for i := range len(g.Children) {
 			assertNode(t, e.Children[i], g.Children[i])
 		}
@@ -466,4 +368,204 @@ func containsErrorCode(errs []ParseError, code ParseErrorCode) bool {
 		}
 	}
 	return false
+}
+
+type TokenOpt func() Token
+
+func InitializeTokens(opts ...TokenOpt) []Token {
+	var tokens []Token
+	for _, opt := range opts {
+		tokens = append(tokens, opt())
+	}
+
+	tokens = append(tokens, Eof()())
+	return tokens
+}
+
+func Comment(comment string) TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    COMMENT,
+			Literal: comment,
+			Lexeme:  comment,
+		}
+	}
+}
+
+func LeftBracket() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    LEFT_BRACKET,
+			Literal: string("["),
+			Lexeme:  "[",
+		}
+	}
+}
+
+func RightBracket() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    RIGHT_BRACKET,
+			Literal: string("]"),
+			Lexeme:  "]",
+		}
+	}
+}
+
+func Comma() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    COMMA,
+			Literal: string(","),
+			Lexeme:  ",",
+		}
+	}
+}
+
+func Dot() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    DOT,
+			Literal: string("."),
+			Lexeme:  ".",
+		}
+	}
+}
+
+func Minus() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    MINUS,
+			Literal: string("-"),
+			Lexeme:  "-",
+		}
+	}
+}
+
+func Plus() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    PLUS,
+			Literal: string("+"),
+			Lexeme:  "+",
+		}
+	}
+}
+
+func Slash() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    SLASH,
+			Literal: string("\\"),
+			Lexeme:  "\\",
+		}
+	}
+}
+
+func Star() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    STAR,
+			Literal: string("*"),
+			Lexeme:  "*",
+		}
+	}
+}
+
+func Equal() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    EQUAL,
+			Literal: string("="),
+			Lexeme:  "=",
+		}
+	}
+}
+
+func BasicString(value string) TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    BASIC_STRING,
+			Literal: value,
+			Lexeme:  fmt.Sprintf("\"%s\"", value),
+		}
+	}
+}
+
+func LiteralString(value string) TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    LITERAL_STRING,
+			Literal: value,
+			Lexeme:  fmt.Sprintf("'%s'", value),
+		}
+	}
+}
+
+func Float(value float64) TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    FLOAT,
+			Literal: value,
+			Lexeme:  fmt.Sprintf("%v", value),
+		}
+	}
+}
+
+func Integer(value int64) TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    INTEGER,
+			Literal: value,
+			Lexeme:  fmt.Sprintf("%v", value),
+		}
+	}
+}
+
+func BareKey(literal string) TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    BARE_KEY,
+			Literal: string(literal),
+			Lexeme:  literal,
+		}
+	}
+}
+
+func False() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    FALSE,
+			Literal: bool(false),
+			Lexeme:  "false",
+		}
+	}
+}
+
+func True() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    TRUE,
+			Literal: bool(true),
+			Lexeme:  "true",
+		}
+	}
+}
+
+func Inf() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    INF,
+			Literal: string("inf"),
+			Lexeme:  "inf",
+		}
+	}
+}
+
+func Eof() TokenOpt {
+	return func() Token {
+		return Token{
+			Type: EOF,
+		}
+	}
 }

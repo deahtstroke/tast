@@ -19,6 +19,7 @@ type Parser struct {
 func NewParser(tokens []Token) *Parser {
 	return &Parser{
 		Tokens: tokens,
+		keys:   make(map[string]struct{}),
 	}
 }
 
@@ -74,7 +75,7 @@ func (p *Parser) parseEntry() Node {
 			p.Synchronize()
 		}
 		return node
-	case p.Match(BARE_KEY, BASIC_STRING):
+	case p.Match(BARE_KEY, BASIC_STRING, LITERAL_STRING):
 		node := p.KeyValue()
 		if node == nil {
 			p.Synchronize()
@@ -103,6 +104,7 @@ func (p *Parser) KeyValue() *KeyValueNode {
 
 	value := p.value()
 	if value == nil {
+		p.addParseError(p.peek(), "unspecified value for after key", ErrUnspecifiedValueForKey)
 		return nil
 	}
 
@@ -265,7 +267,7 @@ func (p *Parser) Key() *KeyNode {
 	}
 
 	for p.Match(DOT) {
-		if !p.Match(BASIC_STRING, BARE_KEY) {
+		if !p.Match(BASIC_STRING, BARE_KEY, LITERAL_STRING) {
 			p.addParseError(p.peek(), "Expected string or bare key after dot '.'", ErrNoKeyAfterDot)
 			return nil
 		}
