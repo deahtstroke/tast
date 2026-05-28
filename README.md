@@ -16,6 +16,7 @@ and look-ahead logic.
 
 > [!WARNING]
 > The library is as of time of writing not 100% compliant with TOML spec v1.1.0
+>
 > Use at your own discretion
 
 ## Installation

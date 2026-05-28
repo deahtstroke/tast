@@ -14,7 +14,6 @@ func Test_ParseTable(t *testing.T) {
 		errorCodes       []ParseErrorCode
 	}{
 		// Comments
-		// TODO: This test is wrong because it doesn't assert comments
 		"General comments with key-value pairs": {
 			tokens: InitializeTokens(
 				Comment("# This is a full-line comment"),
