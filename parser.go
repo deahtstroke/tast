@@ -12,8 +12,9 @@ type Parser struct {
 	Tokens  []Token
 	current int
 
-	errors []ParseError
-	keys   map[string]struct{}
+	errors       []ParseError
+	keys         map[string]struct{}
+	currComments []Trivia
 }
 
 func NewParser(tokens []Token) *Parser {
@@ -36,15 +37,59 @@ func (p *Parser) registerKey(key *KeyNode) error {
 }
 
 func (p *Parser) parse() (*Document, []ParseError) {
-	documentNode := Document{}
+	document := Document{}
 	for !p.isAtEnd() {
 		node := p.parseEntry()
 		if node != nil {
-			documentNode.Content = append(documentNode.Content, node)
+			document.Content = append(document.Content, node)
 		}
 	}
 
-	return &documentNode, p.errors
+	document.OrphanedComments = append(document.OrphanedComments, p.currComments...)
+	return &document, p.errors
+}
+
+func (p *Parser) parseEntry() Node {
+	for p.check(COMMENT) {
+		comment := p.advance()
+		p.currComments = append(p.currComments, Trivia{Lexeme: comment.Lexeme})
+	}
+
+	switch {
+	case p.Match(LEFT_BRACKET):
+		node := p.Table()
+		if node == nil {
+			p.Synchronize()
+			return nil
+		}
+
+		p.flushComments(node)
+		return node
+	case p.Match(BARE_KEY, BASIC_STRING, LITERAL_STRING):
+		node := p.KeyValue()
+		if node == nil {
+			p.Synchronize()
+			return nil
+		}
+
+		p.flushComments(node)
+		return node
+	default:
+		p.advance()
+		return nil
+	}
+}
+
+func (p *Parser) flushComments(node Node) {
+	switch n := node.(type) {
+	case *TableNode:
+		n.LeadingComments = p.currComments
+	case *KeyValueNode:
+		n.LeadingComments = p.currComments
+	default:
+		panic(fmt.Sprintf("Node of type %T cannot have comments associated with it", n))
+	}
+	p.currComments = nil
 }
 
 func (p *Parser) Synchronize() {
@@ -65,37 +110,6 @@ func (p *Parser) addParseErrorNoTokens(msg string, code ParseErrorCode) {
 
 func (p *Parser) addParseError(token Token, msg string, code ParseErrorCode) {
 	p.errors = append(p.errors, ParseError{Token: token, Message: msg, Code: code})
-}
-
-func (p *Parser) parseEntry() Node {
-	var leading []Trivia
-	for p.check(COMMENT) {
-		comment := p.advance()
-		leading = append(leading, Trivia{Lexeme: comment.Lexeme})
-	}
-
-	switch {
-	case p.Match(LEFT_BRACKET):
-		node := p.Table()
-		if node == nil {
-			p.Synchronize()
-		} else {
-			node.LeadingComments = leading
-		}
-		return node
-	case p.Match(BARE_KEY, BASIC_STRING, LITERAL_STRING):
-		node := p.KeyValue()
-		if node == nil {
-			p.Synchronize()
-		} else {
-			node.LeadingComments = leading
-		}
-
-		return node
-	default:
-		p.advance()
-		return nil
-	}
 }
 
 func (p *Parser) KeyValue() *KeyValueNode {
@@ -265,11 +279,28 @@ func (p *Parser) Table() *TableNode {
 	}()
 
 	var children []Node
+	var pendingComments []Trivia
 	for !p.isAtEnd() && !p.check(LEFT_BRACKET) {
+		for p.check(COMMENT) {
+			comment := p.advance()
+			pendingComments = append(pendingComments, Trivia{Lexeme: comment.Lexeme})
+		}
+
+		if p.isAtEnd() || p.check(LEFT_BRACKET) {
+			break
+		}
+
 		kv := p.KeyValue()
 		if kv != nil {
+			kv.LeadingComments = pendingComments
+			pendingComments = nil
+
 			children = append(children, kv)
 		}
+	}
+
+	if pendingComments != nil {
+		p.currComments = append(p.currComments, pendingComments...)
 	}
 
 	tableNode.Children = children

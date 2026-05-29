@@ -16,9 +16,9 @@ func Test_ParseTable(t *testing.T) {
 		// Comments
 		"General comments with key-value pairs": {
 			tokens: InitializeTokens(
-				Comment("# This is a full-line comment"),
-				BareKey("key"), Equal(), BasicString("value"), Comment("# This is a comment at the end of a line"),
-				BareKey("another"), Equal(), BasicString("# This is not a comment"),
+				Comment("# This is a full-line comment"), NewLine(),
+				BareKey("key"), Equal(), BasicString("value"), Comment("# This is a comment at the end of a line"), NewLine(),
+				BareKey("another"), Equal(), BasicString("# This is not a comment"), NewLine(),
 			),
 			expectedDocument: &Document{
 				Content: []Node{
@@ -58,6 +58,31 @@ func Test_ParseTable(t *testing.T) {
 							Segments: []string{"key"},
 						},
 					},
+				},
+			},
+		},
+		// TODO: This test has an infinite loop regrading orphaned comments
+		"Orphaned comments will belong to the document itself": {
+			tokens: InitializeTokens(
+				Comment("# This is a comment"), NewLine(),
+				Comment("# This is another comment"), NewLine(),
+				LeftBracket(), BareKey("key"), RightBracket(), Comment("# This is in the same line as the table"), NewLine(),
+				Comment("# Orphaned comment #1"), NewLine(),
+				Comment("# Orphaned comment #2"), NewLine(),
+			),
+			expectedDocument: &Document{
+				Content: []Node{
+					&TableNode{
+						LeadingComments: []Trivia{{Lexeme: "# This is a comment"}, {Lexeme: "# This is another comment"}},
+						TrailingComment: &Trivia{"# This is in the same line as the table"},
+						Key: &KeyNode{
+							Segments: []string{"key"},
+						},
+					},
+				},
+				OrphanedComments: []Trivia{
+					{Lexeme: "# Orphaned comment #1"},
+					{Lexeme: "# Orphaned comment #2"},
 				},
 			},
 		},
@@ -263,20 +288,20 @@ func Test_ParseTable(t *testing.T) {
 		},
 	}
 
-	for test, params := range tests {
+	for test, expected := range tests {
 		t.Run(test, func(t *testing.T) {
-			parser := NewParser(params.tokens)
-			doc, errs := parser.parse()
-			if params.shouldErr {
+			parser := NewParser(expected.tokens)
+			got, errs := parser.parse()
+			if expected.shouldErr {
 				if len(errs) <= 0 {
 					t.Fatalf("expecting errors, found none")
 				}
 
-				if len(errs) != params.errorCount {
-					t.Fatalf("expecting %d errors, found %d: %v", params.errorCount, len(errs), errs)
+				if len(errs) != expected.errorCount {
+					t.Fatalf("expecting %d errors, found %d: %v", expected.errorCount, len(errs), errs)
 				}
 
-				for _, code := range params.errorCodes {
+				for _, code := range expected.errorCodes {
 					if !containsErrorCode(errs, code) {
 						t.Fatalf("expected error code %v but was not found in %v", code, errs)
 					}
@@ -288,14 +313,27 @@ func Test_ParseTable(t *testing.T) {
 				t.Fatalf("incorrect parse tree: %+v", parser.errors)
 			}
 
-			if len(doc.Content) != len(params.expectedDocument.Content) {
-				t.Fatalf("expected %d nodes in the document, got %d", len(params.expectedDocument.Content), len(doc.Content))
-			}
-
-			for i := range len(doc.Content) {
-				assertNode(t, params.expectedDocument.Content[i], doc.Content[i])
-			}
+			assertDocument(t, expected.expectedDocument, got)
 		})
+	}
+}
+
+func assertDocument(t *testing.T, expected, got *Document) {
+	t.Helper()
+	if expected == nil && got == nil {
+		return
+	}
+
+	if len(expected.Content) != len(got.Content) {
+		t.Fatalf("Expected %d nodes, got %d", len(expected.Content), len(got.Content))
+	}
+
+	for i := range len(got.Content) {
+		assertNode(t, expected.Content[i], got.Content[i])
+	}
+
+	if len(expected.OrphanedComments) != len(got.OrphanedComments) {
+		t.Fatalf("Expected %d orphaned comments, got %d", len(expected.OrphanedComments), len(got.OrphanedComments))
 	}
 }
 
@@ -632,6 +670,16 @@ func Eof() TokenOpt {
 	return func() Token {
 		return Token{
 			Type: EOF,
+		}
+	}
+}
+
+func NewLine() TokenOpt {
+	return func() Token {
+		return Token{
+			Type:    NEW_LINE,
+			Lexeme:  "\n",
+			Literal: string("\n"),
 		}
 	}
 }

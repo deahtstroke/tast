@@ -22,7 +22,8 @@ type Node interface {
 // Top-most node representation of a TOML file
 // in the AST
 type Document struct {
-	Content []Node
+	Content          []Node
+	OrphanedComments []Trivia
 }
 
 // Trivia really is just comments that start with '#'
