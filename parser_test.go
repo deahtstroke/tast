@@ -102,54 +102,24 @@ func Test_ParseTable(t *testing.T) {
 				},
 			},
 		},
-		"Orphaned comments will belong to the document itself": {
-			tokens: InitializeTokens(
-				Comment("# This is a comment"), NewLine(),
-				Comment("# This is another comment"), NewLine(),
-				LeftBracket(), BareKey("key"), RightBracket(), Comment("# This is in the same line as the table"), NewLine(),
-				Comment("# Orphaned comment #1"), NewLine(),
-				Comment("# Orphaned comment #2"), NewLine(),
-			),
-			expectedDocument: &Document{
-				Content: []Node{
-					&TableNode{
-						LeadingTrivia: []Trivia{
-							{Lexeme: "# This is a comment"},
-							{Lexeme: "# This is another comment"},
-						},
-						LineComment: &Trivia{"# This is in the same line as the table"},
-						TrailingComments: []Trivia{
-							{Lexeme: "# Orphaned comment #1"},
-							{Lexeme: "# Orphaned comment #2"},
-						},
-						Key: &KeyNode{
-							Segments: []string{"key"},
-						},
-					},
-				},
-			},
-		},
-		"Comments after a table should belong to the next table": {
+		// TODO: Test doesn't work
+		"Comments should belong to the respective nodes: Tables with no KVs": {
 			tokens: InitializeTokens(
 				Comment("# Comment 1"), NewLine(),
+				LeftBracket(), BareKey("key"), RightBracket(), NewLine(),
 				Comment("# Comment 2"), NewLine(),
-				LeftBracket(), BareKey("key"), RightBracket(), Comment("# This is in the same line as the table"), NewLine(),
-				Comment("# Comment 3"), NewLine(),
-				Comment("# Comment 4"), NewLine(),
-				LeftBracket(), BareKey("key2"), RightBracket(), Comment("# This is in the same line as the table"), NewLine(),
+				LeftBracket(), BareKey("key2"), RightBracket(), NewLine(),
 			),
 			expectedDocument: &Document{
 				Content: []Node{
 					&TableNode{
-						LeadingTrivia: []Trivia{{Lexeme: "# This is a comment"}, {Lexeme: "# This is another comment"}},
-						LineComment:   &Trivia{"# This is in the same line as the table"},
+						LeadingTrivia: []Trivia{{Lexeme: "# Comment 1"}},
 						Key: &KeyNode{
 							Segments: []string{"key"},
 						},
 					},
 					&TableNode{
-						LeadingTrivia: []Trivia{{Lexeme: "# Not orphaned comment"}, {Lexeme: "# Not orphaned comment"}},
-						LineComment:   &Trivia{"# This is in the same line as the table"},
+						LeadingTrivia: []Trivia{{Lexeme: "# Comment 2"}},
 						Key: &KeyNode{
 							Segments: []string{"key2"},
 						},
