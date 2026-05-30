@@ -12,9 +12,9 @@ type Parser struct {
 	Tokens  []Token
 	current int
 
-	errors         []ParseError
-	keys           map[string]struct{}
-	orphanedTrivia []Trivia
+	errors        []ParseError
+	keys          map[string]struct{}
+	pendingTrivia []Trivia
 }
 
 func NewParser(tokens []Token) *Parser {
@@ -51,13 +51,13 @@ func (p *Parser) parse() (*Document, []ParseError) {
 }
 
 func (p *Parser) handleOrphanedTrivia(document *Document) {
-	if p.orphanedTrivia != nil {
+	if p.pendingTrivia != nil {
 		lastNode := document.Content[len(document.Content)-1]
 		switch n := lastNode.(type) {
 		case *KeyValueNode:
-			n.TrailingTrivia = p.orphanedTrivia
+			n.TrailingTrivia = p.pendingTrivia
 		case *TableNode:
-			n.TrailingComments = p.orphanedTrivia
+			n.TrailingComments = p.pendingTrivia
 		default:
 		}
 	}
@@ -96,9 +96,9 @@ func (p *Parser) getLeadingTrivia() []Trivia {
 
 	// Check first if there's orphaned trivia to be
 	// processed from earlier tables
-	if p.orphanedTrivia != nil {
-		trivia = p.orphanedTrivia
-		p.orphanedTrivia = nil
+	if p.pendingTrivia != nil {
+		trivia = p.pendingTrivia
+		p.pendingTrivia = nil
 		return trivia
 	}
 	for !p.isAtEnd() {
@@ -337,7 +337,7 @@ func (p *Parser) Table() *TableNode {
 	}
 
 	// Buffer the pending trivia if there's any
-	p.orphanedTrivia = pendingTrivia
+	p.pendingTrivia = pendingTrivia
 
 	tableNode.Children = children
 	return tableNode
