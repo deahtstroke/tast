@@ -33,7 +33,7 @@ func (p *Printer) print(doc *Document) (string, error) {
 }
 
 func (p *Printer) VisitTableNode(n *TableNode) error {
-	for _, comment := range n.LeadingComments {
+	for _, comment := range n.LeadingTrivia {
 		p.buf.WriteString(comment.Lexeme)
 		p.buf.WriteString("\n")
 	}
@@ -42,9 +42,9 @@ func (p *Printer) VisitTableNode(n *TableNode) error {
 	n.Key.Accept(p)
 	p.buf.WriteString("]")
 
-	if n.TrailingComment != nil {
+	if n.LineComment != nil {
 		p.buf.WriteString(" ")
-		p.buf.WriteString(n.TrailingComment.Lexeme)
+		p.buf.WriteString(n.LineComment.Lexeme)
 	}
 
 	p.buf.WriteString("\n")
@@ -53,7 +53,7 @@ func (p *Printer) VisitTableNode(n *TableNode) error {
 }
 
 func (p *Printer) VisitKeyValueNode(n *KeyValueNode) error {
-	for _, comment := range n.LeadingComments {
+	for _, comment := range n.LeadingTrivia {
 		p.buf.WriteString(comment.Lexeme)
 		p.buf.WriteString("\n")
 	}
@@ -68,7 +68,7 @@ func (p *Printer) VisitKeyValueNode(n *KeyValueNode) error {
 		return err
 	}
 
-	p.buf.WriteString(n.TrailingComment.Lexeme)
+	p.buf.WriteString(n.LineTrivia.Lexeme)
 	p.buf.WriteString("\n")
 	return nil
 }

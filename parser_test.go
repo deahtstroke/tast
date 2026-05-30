@@ -23,8 +23,8 @@ func Test_ParseTable(t *testing.T) {
 			expectedDocument: &Document{
 				Content: []Node{
 					&KeyValueNode{
-						LeadingComments: []Trivia{{Lexeme: "# This is a full-line comment"}},
-						TrailingComment: &Trivia{Lexeme: "# This is a comment at the end of a line"},
+						LeadingTrivia: []Trivia{{Lexeme: "# This is a full-line comment"}},
+						LineTrivia:    &Trivia{Lexeme: "# This is a comment at the end of a line"},
 						Key: &KeyNode{
 							Segments: []string{"key"},
 						},
@@ -43,7 +43,48 @@ func Test_ParseTable(t *testing.T) {
 				},
 			},
 		},
-		"Accumulated comments with tables": {
+
+		"Leading comments belong to the respective nodes: Table + KVs": {
+			tokens: InitializeTokens(
+				Comment("# Trivia 1"), NewLine(),
+				LeftBracket(), BareKey("key1"), RightBracket(), NewLine(),
+				Comment("# Trivia 2"), NewLine(),
+				BareKey("key2"), Equal(), BasicString("value"), NewLine(),
+				Comment("# Trivia 3"), NewLine(),
+				BareKey("key3"), Equal(), BasicString("value"), NewLine(),
+			),
+			expectedDocument: &Document{
+				Content: []Node{
+					&TableNode{
+						LeadingTrivia: []Trivia{{Lexeme: "# Trivia 1"}},
+						Key: &KeyNode{
+							Segments: []string{"key1"},
+						},
+						Children: []Node{
+							&KeyValueNode{
+								LeadingTrivia: []Trivia{{Lexeme: "# Trivia 2"}},
+								Key: &KeyNode{
+									Segments: []string{"key2"},
+								},
+								Value: &StringNode{
+									Value: "value",
+								},
+							},
+							&KeyValueNode{
+								LeadingTrivia: []Trivia{{Lexeme: "# Trivia 3"}},
+								Key: &KeyNode{
+									Segments: []string{"key3"},
+								},
+								Value: &StringNode{
+									Value: "value",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"Accumulated >1 comments with tables": {
 			tokens: InitializeTokens(
 				Comment("# This is a comment"),
 				Comment("# This is another comment"),
@@ -52,8 +93,8 @@ func Test_ParseTable(t *testing.T) {
 			expectedDocument: &Document{
 				Content: []Node{
 					&TableNode{
-						LeadingComments: []Trivia{{Lexeme: "# This is a comment"}, {Lexeme: "# This is another comment"}},
-						TrailingComment: &Trivia{"# This is in the same line as the table"},
+						LeadingTrivia: []Trivia{{Lexeme: "# This is a comment"}, {Lexeme: "# This is another comment"}},
+						LineComment:   &Trivia{"# This is in the same line as the table"},
 						Key: &KeyNode{
 							Segments: []string{"key"},
 						},
@@ -61,7 +102,6 @@ func Test_ParseTable(t *testing.T) {
 				},
 			},
 		},
-		// TODO: This test has an infinite loop regrading orphaned comments
 		"Orphaned comments will belong to the document itself": {
 			tokens: InitializeTokens(
 				Comment("# This is a comment"), NewLine(),
@@ -73,16 +113,47 @@ func Test_ParseTable(t *testing.T) {
 			expectedDocument: &Document{
 				Content: []Node{
 					&TableNode{
-						LeadingComments: []Trivia{{Lexeme: "# This is a comment"}, {Lexeme: "# This is another comment"}},
-						TrailingComment: &Trivia{"# This is in the same line as the table"},
+						LeadingTrivia: []Trivia{
+							{Lexeme: "# This is a comment"},
+							{Lexeme: "# This is another comment"},
+						},
+						LineComment: &Trivia{"# This is in the same line as the table"},
+						TrailingComments: []Trivia{
+							{Lexeme: "# Orphaned comment #1"},
+							{Lexeme: "# Orphaned comment #2"},
+						},
 						Key: &KeyNode{
 							Segments: []string{"key"},
 						},
 					},
 				},
-				OrphanedComments: []Trivia{
-					{Lexeme: "# Orphaned comment #1"},
-					{Lexeme: "# Orphaned comment #2"},
+			},
+		},
+		"Comments after a table should belong to the next table": {
+			tokens: InitializeTokens(
+				Comment("# Comment 1"), NewLine(),
+				Comment("# Comment 2"), NewLine(),
+				LeftBracket(), BareKey("key"), RightBracket(), Comment("# This is in the same line as the table"), NewLine(),
+				Comment("# Comment 3"), NewLine(),
+				Comment("# Comment 4"), NewLine(),
+				LeftBracket(), BareKey("key2"), RightBracket(), Comment("# This is in the same line as the table"), NewLine(),
+			),
+			expectedDocument: &Document{
+				Content: []Node{
+					&TableNode{
+						LeadingTrivia: []Trivia{{Lexeme: "# This is a comment"}, {Lexeme: "# This is another comment"}},
+						LineComment:   &Trivia{"# This is in the same line as the table"},
+						Key: &KeyNode{
+							Segments: []string{"key"},
+						},
+					},
+					&TableNode{
+						LeadingTrivia: []Trivia{{Lexeme: "# Not orphaned comment"}, {Lexeme: "# Not orphaned comment"}},
+						LineComment:   &Trivia{"# This is in the same line as the table"},
+						Key: &KeyNode{
+							Segments: []string{"key2"},
+						},
+					},
 				},
 			},
 		},
@@ -331,10 +402,6 @@ func assertDocument(t *testing.T, expected, got *Document) {
 	for i := range len(got.Content) {
 		assertNode(t, expected.Content[i], got.Content[i])
 	}
-
-	if len(expected.OrphanedComments) != len(got.OrphanedComments) {
-		t.Fatalf("Expected %d orphaned comments, got %d", len(expected.OrphanedComments), len(got.OrphanedComments))
-	}
 }
 
 func assertNode(t *testing.T, expected, got Node) {
@@ -365,16 +432,17 @@ func assertNode(t *testing.T, expected, got Node) {
 			assertNode(t, e.Children[i], g.Children[i])
 		}
 
-		assertComments(t, e.LeadingComments, g.LeadingComments, "leading")
-		if e.TrailingComment != nil {
-			if g.TrailingComment.Lexeme == "" {
-				t.Fatalf("expected trailing comment %q, got \"\"", e.TrailingComment.Lexeme)
+		assertComments(t, e.LeadingTrivia, g.LeadingTrivia, "leading")
+		if e.LineComment != nil {
+			if g.LineComment.Lexeme == "" {
+				t.Fatalf("expected trailing comment %q, got \"\"", e.LineComment.Lexeme)
 			}
 
-			if e.TrailingComment.Lexeme != g.TrailingComment.Lexeme {
-				t.Errorf("trailing comment: expected %q, got %q", e.TrailingComment.Lexeme, g.TrailingComment.Lexeme)
+			if e.LineComment.Lexeme != g.LineComment.Lexeme {
+				t.Errorf("trailing comment: expected %q, got %q", e.LineComment.Lexeme, g.LineComment.Lexeme)
 			}
 		}
+		assertComments(t, e.TrailingComments, g.TrailingComments, "trailing")
 	case *KeyValueNode:
 		g, ok := got.(*KeyValueNode)
 		if !ok {
@@ -382,14 +450,14 @@ func assertNode(t *testing.T, expected, got Node) {
 		}
 		assertKeyNode(t, e.Key, g.Key)
 		assertNode(t, e.Value, g.Value)
-		assertComments(t, e.LeadingComments, g.LeadingComments, "leading")
-		if e.TrailingComment != nil {
-			if g.TrailingComment == nil {
+		assertComments(t, e.LeadingTrivia, g.LeadingTrivia, "leading")
+		if e.LineTrivia != nil {
+			if g.LineTrivia == nil {
 				t.Fatal("expected trailing comment, got nil")
 			}
 
-			if e.TrailingComment.Lexeme != g.TrailingComment.Lexeme {
-				t.Errorf("trailing comment: expected %q, got %q", e.TrailingComment.Lexeme, g.TrailingComment.Lexeme)
+			if e.LineTrivia.Lexeme != g.LineTrivia.Lexeme {
+				t.Errorf("trailing comment: expected %q, got %q", e.LineTrivia.Lexeme, g.LineTrivia.Lexeme)
 			}
 		}
 	case *StringNode:

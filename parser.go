@@ -12,9 +12,9 @@ type Parser struct {
 	Tokens  []Token
 	current int
 
-	errors       []ParseError
-	keys         map[string]struct{}
-	currComments []Trivia
+	errors         []ParseError
+	keys           map[string]struct{}
+	orphanedTrivia []Trivia
 }
 
 func NewParser(tokens []Token) *Parser {
@@ -37,7 +37,7 @@ func (p *Parser) registerKey(key *KeyNode) error {
 }
 
 func (p *Parser) parse() (*Document, []ParseError) {
-	document := Document{}
+	document := &Document{}
 	for !p.isAtEnd() {
 		node := p.parseEntry()
 		if node != nil {
@@ -45,34 +45,45 @@ func (p *Parser) parse() (*Document, []ParseError) {
 		}
 	}
 
-	document.OrphanedComments = append(document.OrphanedComments, p.currComments...)
-	return &document, p.errors
+	p.handleOrphanedTrivia(document)
+
+	return document, p.errors
+}
+
+func (p *Parser) handleOrphanedTrivia(document *Document) {
+	if p.orphanedTrivia != nil {
+		lastNode := document.Content[len(document.Content)-1]
+		switch n := lastNode.(type) {
+		case *KeyValueNode:
+			n.TrailingTrivia = p.orphanedTrivia
+		case *TableNode:
+			n.TrailingComments = p.orphanedTrivia
+		default:
+		}
+	}
 }
 
 func (p *Parser) parseEntry() Node {
-	for p.check(COMMENT) {
-		comment := p.advance()
-		p.currComments = append(p.currComments, Trivia{Lexeme: comment.Lexeme})
-	}
-
+	// Accumulate all trivia before appending to next node
+	leading := p.getLeadingTrivia()
 	switch {
 	case p.Match(LEFT_BRACKET):
 		node := p.Table()
 		if node == nil {
-			p.Synchronize()
+			p.synchronize()
 			return nil
 		}
 
-		p.flushComments(node)
+		node.LeadingTrivia = leading
 		return node
 	case p.Match(BARE_KEY, BASIC_STRING, LITERAL_STRING):
 		node := p.KeyValue()
 		if node == nil {
-			p.Synchronize()
+			p.synchronize()
 			return nil
 		}
 
-		p.flushComments(node)
+		node.LeadingTrivia = leading
 		return node
 	default:
 		p.advance()
@@ -80,19 +91,26 @@ func (p *Parser) parseEntry() Node {
 	}
 }
 
-func (p *Parser) flushComments(node Node) {
-	switch n := node.(type) {
-	case *TableNode:
-		n.LeadingComments = p.currComments
-	case *KeyValueNode:
-		n.LeadingComments = p.currComments
-	default:
-		panic(fmt.Sprintf("Node of type %T cannot have comments associated with it", n))
+func (p *Parser) getLeadingTrivia() []Trivia {
+	var trivia []Trivia
+	for !p.isAtEnd() {
+		if p.check(NEW_LINE) {
+			p.advance()
+			continue
+		}
+
+		if p.check(COMMENT) {
+			comment := p.advance()
+			trivia = append(trivia, Trivia{Lexeme: comment.Lexeme})
+			continue
+		}
+
+		break
 	}
-	p.currComments = nil
+	return trivia
 }
 
-func (p *Parser) Synchronize() {
+func (p *Parser) synchronize() {
 	p.advance() // skip the current token
 
 	for !p.isAtEnd() {
@@ -138,7 +156,7 @@ func (p *Parser) KeyValue() *KeyValueNode {
 
 	if p.check(COMMENT) {
 		comment := p.advance()
-		keyValueNode.TrailingComment = &Trivia{Lexeme: comment.Lexeme}
+		keyValueNode.LineTrivia = &Trivia{Lexeme: comment.Lexeme}
 	}
 
 	return keyValueNode
@@ -268,39 +286,43 @@ func (p *Parser) Table() *TableNode {
 	// Trailing comment
 	if p.check(COMMENT) {
 		comment := p.advance()
-		tableNode.TrailingComment = &Trivia{Lexeme: comment.Lexeme}
+		tableNode.LineComment = &Trivia{Lexeme: comment.Lexeme}
 	}
 
-	// Check duplicates in the current context
-	outer := p.keys
-	p.keys = make(map[string]struct{})
-	defer func() {
-		p.keys = outer
-	}()
+	// TODO: Come back to duplicate keys on tables
+	// outer := p.keys
+	// p.keys = make(map[string]struct{})
+	// defer func() {
+	// 	p.keys = outer
+	// }()
 
 	var children []Node
-	var pendingComments []Trivia
+	var pendingTrivia []Trivia
 	for !p.isAtEnd() && !p.check(LEFT_BRACKET) {
-		for p.check(COMMENT) {
-			comment := p.advance()
-			pendingComments = append(pendingComments, Trivia{Lexeme: comment.Lexeme})
+
+		if p.check(NEW_LINE) {
+			p.advance()
+			continue
 		}
 
-		if p.isAtEnd() || p.check(LEFT_BRACKET) {
-			break
+		pendingTrivia = p.getLeadingTrivia()
+		// TODO: Removed here a check for the next table and
+		// end of the document itself
+
+		// Consume the first part of the key-value
+		if p.Match(BARE_KEY, BASIC_STRING, LITERAL_STRING) {
+			kv := p.KeyValue()
+
+			if kv != nil {
+				kv.LeadingTrivia = pendingTrivia
+				pendingTrivia = nil
+
+				children = append(children, kv)
+			} else {
+				p.synchronize()
+				break
+			}
 		}
-
-		kv := p.KeyValue()
-		if kv != nil {
-			kv.LeadingComments = pendingComments
-			pendingComments = nil
-
-			children = append(children, kv)
-		}
-	}
-
-	if pendingComments != nil {
-		p.currComments = append(p.currComments, pendingComments...)
 	}
 
 	tableNode.Children = children

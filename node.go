@@ -22,8 +22,7 @@ type Node interface {
 // Top-most node representation of a TOML file
 // in the AST
 type Document struct {
-	Content          []Node
-	OrphanedComments []Trivia
+	Content []Node
 }
 
 // Trivia really is just comments that start with '#'
@@ -44,10 +43,14 @@ type TableNode struct {
 
 	// Any leading comments that may come before the
 	// table itself
-	LeadingComments []Trivia
+	LeadingTrivia []Trivia
 
 	// Comment in the same line as the table
-	TrailingComment *Trivia
+	LineComment *Trivia
+
+	// Any comments that are leftover after the table
+	// itself
+	TrailingComments []Trivia
 
 	// Tokens that make up the table-key
 	Tokens []Token
@@ -93,10 +96,15 @@ type KeyValueNode struct {
 	Tokens []Token
 
 	// Any leading comments that may come before a key-value node
-	LeadingComments []Trivia
+	LeadingTrivia []Trivia
 
 	// Comment at the end of the line in a key-value node
-	TrailingComment *Trivia
+	LineTrivia *Trivia
+
+	// Any comments at the end of a key-value node
+	// Note: This field only gets filled if the only tokens leftover
+	// after the dangling trivia are New lines and/or EOF
+	TrailingTrivia []Trivia
 }
 
 func (n *KeyValueNode) NodeLexeme() string {
