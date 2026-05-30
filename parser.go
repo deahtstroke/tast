@@ -93,6 +93,14 @@ func (p *Parser) parseEntry() Node {
 
 func (p *Parser) getLeadingTrivia() []Trivia {
 	var trivia []Trivia
+
+	// Check first if there's orphaned trivia to be
+	// processed from earlier tables
+	if p.orphanedTrivia != nil {
+		trivia = p.orphanedTrivia
+		p.orphanedTrivia = nil
+		return trivia
+	}
 	for !p.isAtEnd() {
 		if p.check(NEW_LINE) {
 			p.advance()
@@ -306,6 +314,9 @@ func (p *Parser) Table() *TableNode {
 		}
 
 		pendingTrivia = p.getLeadingTrivia()
+		if p.isAtEnd() || p.check(LEFT_BRACKET) {
+			break
+		}
 		// TODO: Removed here a check for the next table and
 		// end of the document itself
 
@@ -324,6 +335,9 @@ func (p *Parser) Table() *TableNode {
 			}
 		}
 	}
+
+	// Buffer the pending trivia if there's any
+	p.orphanedTrivia = pendingTrivia
 
 	tableNode.Children = children
 	return tableNode
