@@ -94,7 +94,7 @@ func Test_ParseTable(t *testing.T) {
 				Content: []Node{
 					&TableNode{
 						LeadingTrivia: []Trivia{{Lexeme: "# This is a comment"}, {Lexeme: "# This is another comment"}},
-						LineComment:   &Trivia{"# This is in the same line as the table"},
+						LineTrivia:    &Trivia{"# This is in the same line as the table"},
 						Key: &KeyNode{
 							Segments: []string{"key"},
 						},
@@ -102,7 +102,6 @@ func Test_ParseTable(t *testing.T) {
 				},
 			},
 		},
-		// TODO: Test doesn't work
 		"Comments should belong to the respective nodes: Tables with no KVs": {
 			tokens: InitializeTokens(
 				Comment("# Comment 1"), NewLine(),
@@ -122,6 +121,24 @@ func Test_ParseTable(t *testing.T) {
 						LeadingTrivia: []Trivia{{Lexeme: "# Comment 2"}},
 						Key: &KeyNode{
 							Segments: []string{"key2"},
+						},
+					},
+				},
+			},
+		},
+		"Comments at the end of the document are assigned to last node": {
+			tokens: InitializeTokens(
+				Comment("# Comment 1"), NewLine(),
+				LeftBracket(), BareKey("key"), RightBracket(), NewLine(),
+				Comment("# Comment 2"), NewLine(),
+			),
+			expectedDocument: &Document{
+				Content: []Node{
+					&TableNode{
+						LeadingTrivia:  []Trivia{{Lexeme: "# Comment 1"}},
+						TrailingTrivia: []Trivia{{Lexeme: "# Comment 2"}},
+						Key: &KeyNode{
+							Segments: []string{"key"},
 						},
 					},
 				},
@@ -403,16 +420,16 @@ func assertNode(t *testing.T, expected, got Node) {
 		}
 
 		assertComments(t, e.LeadingTrivia, g.LeadingTrivia, "leading")
-		if e.LineComment != nil {
-			if g.LineComment.Lexeme == "" {
-				t.Fatalf("expected trailing comment %q, got \"\"", e.LineComment.Lexeme)
+		if e.LineTrivia != nil {
+			if g.LineTrivia.Lexeme == "" {
+				t.Fatalf("expected trailing comment %q, got \"\"", e.LineTrivia.Lexeme)
 			}
 
-			if e.LineComment.Lexeme != g.LineComment.Lexeme {
-				t.Errorf("trailing comment: expected %q, got %q", e.LineComment.Lexeme, g.LineComment.Lexeme)
+			if e.LineTrivia.Lexeme != g.LineTrivia.Lexeme {
+				t.Errorf("trailing comment: expected %q, got %q", e.LineTrivia.Lexeme, g.LineTrivia.Lexeme)
 			}
 		}
-		assertComments(t, e.TrailingComments, g.TrailingComments, "trailing")
+		assertComments(t, e.TrailingTrivia, g.TrailingTrivia, "trailing")
 	case *KeyValueNode:
 		g, ok := got.(*KeyValueNode)
 		if !ok {

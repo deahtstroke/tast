@@ -66,7 +66,7 @@ func withLeading(comments []string) TableOption {
 
 func withTrailing(comment string) TableOption {
 	return func(tn *TableNode) {
-		tn.LineComment = makeTrivia(comment)
+		tn.LineTrivia = makeTrivia(comment)
 	}
 }
 

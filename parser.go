@@ -57,7 +57,7 @@ func (p *Parser) handleOrphanedTrivia(document *Document) {
 		case *KeyValueNode:
 			n.TrailingTrivia = p.pendingTrivia
 		case *TableNode:
-			n.TrailingComments = p.pendingTrivia
+			n.TrailingTrivia = p.pendingTrivia
 		default:
 		}
 	}
@@ -294,7 +294,7 @@ func (p *Parser) Table() *TableNode {
 	// Trailing comment
 	if p.check(COMMENT) {
 		comment := p.advance()
-		tableNode.LineComment = &Trivia{Lexeme: comment.Lexeme}
+		tableNode.LineTrivia = &Trivia{Lexeme: comment.Lexeme}
 	}
 
 	// TODO: Come back to duplicate keys on tables

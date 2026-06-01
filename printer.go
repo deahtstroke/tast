@@ -42,9 +42,9 @@ func (p *Printer) VisitTableNode(n *TableNode) error {
 	n.Key.Accept(p)
 	p.buf.WriteString("]")
 
-	if n.LineComment != nil {
+	if n.LineTrivia != nil {
 		p.buf.WriteString(" ")
-		p.buf.WriteString(n.LineComment.Lexeme)
+		p.buf.WriteString(n.LineTrivia.Lexeme)
 	}
 
 	p.buf.WriteString("\n")

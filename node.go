@@ -46,11 +46,11 @@ type TableNode struct {
 	LeadingTrivia []Trivia
 
 	// Comment in the same line as the table
-	LineComment *Trivia
+	LineTrivia *Trivia
 
 	// Any comments that are leftover after the table
 	// itself
-	TrailingComments []Trivia
+	TrailingTrivia []Trivia
 
 	// Tokens that make up the table-key
 	Tokens []Token
