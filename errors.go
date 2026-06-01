@@ -16,6 +16,7 @@ const (
 	ErrParsingInt
 	ErrParsingFloat
 	ErrDuplicateKey
+	ErrDuplicateTable
 	ErrUnspecifiedValueForKey
 )
 

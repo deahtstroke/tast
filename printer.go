@@ -53,8 +53,8 @@ func (p *Printer) VisitTableNode(n *TableNode) error {
 }
 
 func (p *Printer) VisitKeyValueNode(n *KeyValueNode) error {
-	for _, comment := range n.LeadingTrivia {
-		p.buf.WriteString(comment.Lexeme)
+	for _, trivia := range n.LeadingTrivia {
+		p.buf.WriteString(trivia.Lexeme)
 		p.buf.WriteString("\n")
 	}
 
@@ -68,8 +68,16 @@ func (p *Printer) VisitKeyValueNode(n *KeyValueNode) error {
 		return err
 	}
 
-	p.buf.WriteString(n.LineTrivia.Lexeme)
+	if n.LineTrivia != nil {
+		p.buf.WriteString(n.LineTrivia.Lexeme)
+	}
+
 	p.buf.WriteString("\n")
+
+	for _, trivia := range n.TrailingTrivia {
+		p.buf.WriteString(trivia.Lexeme)
+		p.buf.WriteString("\n")
+	}
 	return nil
 }
 

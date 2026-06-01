@@ -14,6 +14,7 @@ type Parser struct {
 
 	errors        []ParseError
 	keys          map[string]struct{}
+	tables        map[string]struct{}
 	pendingTrivia []Trivia
 }
 
@@ -22,6 +23,16 @@ func NewParser(tokens []Token) *Parser {
 		Tokens: tokens,
 		keys:   make(map[string]struct{}),
 	}
+}
+
+func (p *Parser) registerTable(table *TableNode) error {
+	tableKey := strings.Join(table.Key.Segments, ".")
+	if _, exists := p.tables[tableKey]; exists {
+		msg := fmt.Sprintf("Duplicate table exists with signature %s", tableKey)
+		p.addParseErrorNoTokens(msg, ErrDuplicateTable)
+		return errors.New(msg)
+	}
+	return nil
 }
 
 func (p *Parser) registerKey(key *KeyNode) error {
@@ -39,7 +50,7 @@ func (p *Parser) registerKey(key *KeyNode) error {
 func (p *Parser) parse() (*Document, []ParseError) {
 	document := &Document{}
 	for !p.isAtEnd() {
-		node := p.parseEntry()
+		node := p.nextNode()
 		if node != nil {
 			document.Content = append(document.Content, node)
 		}
@@ -63,7 +74,7 @@ func (p *Parser) handleOrphanedTrivia(document *Document) {
 	}
 }
 
-func (p *Parser) parseEntry() Node {
+func (p *Parser) nextNode() Node {
 	// Accumulate all trivia before appending to next node
 	leading := p.getLeadingTrivia()
 	switch {
