@@ -22,16 +22,18 @@ func NewParser(tokens []Token) *Parser {
 	return &Parser{
 		Tokens: tokens,
 		keys:   make(map[string]struct{}),
+		tables: make(map[string]struct{}),
 	}
 }
 
-func (p *Parser) registerTable(table *TableNode) error {
-	tableKey := strings.Join(table.Key.Segments, ".")
+func (p *Parser) registerTable(table *KeyNode) error {
+	tableKey := strings.Join(table.Segments, ".")
 	if _, exists := p.tables[tableKey]; exists {
 		msg := fmt.Sprintf("Duplicate table exists with signature %s", tableKey)
 		p.addParseErrorNoTokens(msg, ErrDuplicateTable)
-		return errors.New(msg)
 	}
+
+	p.tables[tableKey] = struct{}{}
 	return nil
 }
 
@@ -295,6 +297,10 @@ func (p *Parser) Table() *TableNode {
 	if key == nil {
 		return nil
 	}
+
+	if err := p.registerTable(key); err != nil {
+		return nil
+	}
 	tableNode.Key = key
 
 	if !p.Match(RIGHT_BRACKET) {
@@ -308,12 +314,11 @@ func (p *Parser) Table() *TableNode {
 		tableNode.LineTrivia = &Trivia{Lexeme: comment.Lexeme}
 	}
 
-	// TODO: Come back to duplicate keys on tables
-	// outer := p.keys
-	// p.keys = make(map[string]struct{})
-	// defer func() {
-	// 	p.keys = outer
-	// }()
+	outer := p.keys
+	p.keys = make(map[string]struct{})
+	defer func() {
+		p.keys = outer
+	}()
 
 	var children []Node
 	var pendingTrivia []Trivia
@@ -328,14 +333,13 @@ func (p *Parser) Table() *TableNode {
 		if p.isAtEnd() || p.check(LEFT_BRACKET) {
 			break
 		}
-		// TODO: Removed here a check for the next table and
-		// end of the document itself
 
 		// Consume the first part of the key-value
 		if p.Match(BARE_KEY, BASIC_STRING, LITERAL_STRING) {
 			kv := p.KeyValue()
 
-			if kv != nil {
+			err := p.registerKey(kv.Key)
+			if kv != nil && err == nil {
 				kv.LeadingTrivia = pendingTrivia
 				pendingTrivia = nil
 

@@ -5,7 +5,7 @@ A TOML AST library for Go.
 ## Background
 
 Built for [`protheon`](https://github.com/deahtstroke/protheon), which required making
-surgical changes to small TOML configuration files at the AST level. The
+surgical changes to small TOML configuration files at the AST-level. The
 existing TOML libraries for Go either lacked AST access entirely or exposed
 unstable APIs that weren't suitable for production use, so this library was
 built to cover that specific use case. The current implementation of the AST
@@ -14,10 +14,11 @@ itself does not support using Go's standard interfaces for readers and writers, 
 TOML configurations that can be parsed in one go without relying on internal buffering
 and look-ahead logic.
 
-> [!WARNING]
-> The library is as of time of writing not 100% compliant with TOML spec v1.1.0
->
-> Use at your own discretion
+## Compliance
+
+We're working toward full TOML v1.0 compliance tracked against 
+BurntSushi/toml-test. Each failing category is an open issue 
+and a good first contribution.
 
 ## Installation
 
@@ -37,4 +38,3 @@ doc.WriteFile("config.toml")
 ## Status
 
 Early development — API may shift while on `v0.x.x`.
-

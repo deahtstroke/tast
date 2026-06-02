@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func Test_ParseTable(t *testing.T) {
+func Test_Parser(t *testing.T) {
 	tests := map[string]struct {
 		tokens           []Token
 		expectedDocument *Document
@@ -15,7 +15,7 @@ func Test_ParseTable(t *testing.T) {
 	}{
 		// Comments
 		"General comments with key-value pairs": {
-			tokens: InitializeTokens(
+			tokens: DeclareTokens(
 				Comment("# This is a full-line comment"), NewLine(),
 				BareKey("key"), Equal(), BasicString("value"), Comment("# This is a comment at the end of a line"), NewLine(),
 				BareKey("another"), Equal(), BasicString("# This is not a comment"), NewLine(),
@@ -43,9 +43,8 @@ func Test_ParseTable(t *testing.T) {
 				},
 			},
 		},
-
 		"Leading comments belong to the respective nodes: Table + KVs": {
-			tokens: InitializeTokens(
+			tokens: DeclareTokens(
 				Comment("# Trivia 1"), NewLine(),
 				LeftBracket(), BareKey("key1"), RightBracket(), NewLine(),
 				Comment("# Trivia 2"), NewLine(),
@@ -84,8 +83,8 @@ func Test_ParseTable(t *testing.T) {
 				},
 			},
 		},
-		"Accumulated >1 comments with tables": {
-			tokens: InitializeTokens(
+		"Accumulated >1 comments before a table": {
+			tokens: DeclareTokens(
 				Comment("# This is a comment"),
 				Comment("# This is another comment"),
 				LeftBracket(), BareKey("key"), RightBracket(), Comment("# This is in the same line as the table"),
@@ -103,7 +102,7 @@ func Test_ParseTable(t *testing.T) {
 			},
 		},
 		"Comments should belong to the respective nodes: Tables with no KVs": {
-			tokens: InitializeTokens(
+			tokens: DeclareTokens(
 				Comment("# Comment 1"), NewLine(),
 				LeftBracket(), BareKey("key"), RightBracket(), NewLine(),
 				Comment("# Comment 2"), NewLine(),
@@ -127,7 +126,7 @@ func Test_ParseTable(t *testing.T) {
 			},
 		},
 		"Comments at the end of the document are assigned to last node": {
-			tokens: InitializeTokens(
+			tokens: DeclareTokens(
 				Comment("# Comment 1"), NewLine(),
 				LeftBracket(), BareKey("key"), RightBracket(), NewLine(),
 				Comment("# Comment 2"), NewLine(),
@@ -146,7 +145,7 @@ func Test_ParseTable(t *testing.T) {
 		},
 		// Key-value pair
 		"Basic key-value pair": {
-			tokens: InitializeTokens(
+			tokens: DeclareTokens(
 				BareKey("key"), Equal(), BasicString("value"),
 			),
 			expectedDocument: &Document{
@@ -163,7 +162,7 @@ func Test_ParseTable(t *testing.T) {
 			},
 		},
 		"Should error on unspecified values": {
-			tokens: InitializeTokens(
+			tokens: DeclareTokens(
 				BareKey("key"), Equal(),
 			),
 			shouldErr:  true,
@@ -172,7 +171,7 @@ func Test_ParseTable(t *testing.T) {
 		},
 		// Keys
 		"BareKeys": {
-			tokens: InitializeTokens(
+			tokens: DeclareTokens(
 				BareKey("key"), Equal(), BasicString("value"),
 				BareKey("bare_key"), Equal(), BasicString("value"),
 				BareKey("bare-key"), Equal(), BasicString("value"),
@@ -216,7 +215,7 @@ func Test_ParseTable(t *testing.T) {
 			},
 		},
 		"Quoted Keys": {
-			tokens: InitializeTokens(
+			tokens: DeclareTokens(
 				BasicString("127.0.0.1"), Equal(), BasicString("value"),
 				BasicString("character encoding"), Equal(), BasicString("value"),
 				LiteralString("key2"), Equal(), BasicString("value"),
@@ -268,7 +267,7 @@ func Test_ParseTable(t *testing.T) {
 			},
 		},
 		"Dotted-keys": {
-			tokens: InitializeTokens(
+			tokens: DeclareTokens(
 				BareKey("name"), Equal(), BasicString("Orange"),
 				BareKey("physical"), Dot(), BasicString("color"), Equal(), BasicString("orange"),
 				BareKey("physical"), Dot(), BasicString("shape"), Equal(), BasicString("round"),
@@ -312,7 +311,7 @@ func Test_ParseTable(t *testing.T) {
 			},
 		},
 		"Duplicate keys should error": {
-			tokens: InitializeTokens(
+			tokens: DeclareTokens(
 				BareKey("name"), Equal(), BasicString("Tom"),
 				BareKey("name"), Equal(), BasicString("Pradyun"),
 			),
@@ -321,7 +320,7 @@ func Test_ParseTable(t *testing.T) {
 			errorCodes: []ParseErrorCode{ErrDuplicateKey},
 		},
 		"Barekeys and quotted keys are equivalent on duplicate check": {
-			tokens: InitializeTokens(
+			tokens: DeclareTokens(
 				BareKey("spelling"), Equal(), BasicString("favorite"),
 				BasicString("spelling"), Equal(), BasicString("favourite"),
 			),
@@ -330,7 +329,7 @@ func Test_ParseTable(t *testing.T) {
 			errorCodes: []ParseErrorCode{ErrDuplicateKey},
 		},
 		"Valid but discouraged key": {
-			tokens: InitializeTokens(BareKey("3"), Dot(), BareKey("14159"), Equal(), BasicString("pi")),
+			tokens: DeclareTokens(BareKey("3"), Dot(), BareKey("14159"), Equal(), BasicString("pi")),
 			expectedDocument: &Document{
 				Content: []Node{
 					&KeyValueNode{
@@ -343,6 +342,35 @@ func Test_ParseTable(t *testing.T) {
 					},
 				},
 			},
+		},
+		"Duplicate tables should error": {
+			tokens: DeclareTokens(
+				LeftBracket(), BareKey("key"), RightBracket(), NewLine(),
+				LeftBracket(), BareKey("key"), RightBracket(),
+			),
+			shouldErr:  true,
+			errorCount: 1,
+			errorCodes: []ParseErrorCode{ErrDuplicateTable},
+		},
+		"Table with duplicate KVs should error": {
+			tokens: DeclareTokens(
+				LeftBracket(), BareKey("key"), RightBracket(), NewLine(),
+				BareKey("hello"), Equal(), BasicString("world"), NewLine(),
+				BasicString("hello"), Equal(), BasicString("world?"),
+			),
+			shouldErr:  true,
+			errorCount: 1,
+			errorCodes: []ParseErrorCode{ErrDuplicateKey},
+		},
+		"Table with duplicate dotted KVs should error": {
+			tokens: DeclareTokens(
+				LeftBracket(), BareKey("key"), RightBracket(), NewLine(),
+				BareKey("foo"), Dot(), BareKey("bar"), Equal(), BasicString("world"), NewLine(),
+				BasicString("foo"), Dot(), BasicString("bar"), Equal(), BasicString("world??"),
+			),
+			shouldErr:  true,
+			errorCount: 1,
+			errorCodes: []ParseErrorCode{ErrDuplicateKey},
 		},
 	}
 
@@ -531,7 +559,7 @@ func containsErrorCode(errs []ParseError, code ParseErrorCode) bool {
 
 type TokenOpt func() Token
 
-func InitializeTokens(opts ...TokenOpt) []Token {
+func DeclareTokens(opts ...TokenOpt) []Token {
 	var tokens []Token
 	for _, opt := range opts {
 		tokens = append(tokens, opt())
