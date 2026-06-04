@@ -1,6 +1,7 @@
 package tast
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -62,6 +63,66 @@ func (n *TableNode) NodeLexeme() string {
 
 func (n *TableNode) Accept(v Visitor) error {
 	return v.VisitTableNode(n)
+}
+
+func (n *TableNode) Set(key string, value any) error {
+	k, exists := n.FindKey(key)
+	if !exists {
+		return fmt.Errorf("Cannot find key %s", key)
+	}
+
+	var node Node
+	switch v := value.(type) {
+	case int64:
+		node = &IntegerNode{
+			Value: v,
+		}
+	case string:
+		node = &StringNode{
+			Value: v,
+		}
+	case float64:
+		node = &FloatNode{
+			Value: v,
+		}
+	case bool:
+		node = &BooleanNode{
+			Value: v,
+		}
+	default:
+	}
+
+	k.Value = node
+	return nil
+}
+
+func (n *TableNode) Delete(key string) bool {
+	i := n.findNodeIndex(key)
+	if i == -1 {
+		return false
+	}
+
+	n.Children = append(n.Children[:i], n.Children[i+1:]...)
+	return false
+}
+
+func (n *TableNode) FindKey(key string) (*KeyValueNode, bool) {
+	i := n.findNodeIndex(key)
+	if i == -1 {
+		return nil, false
+	}
+
+	return n.Children[i].(*KeyValueNode), true
+}
+
+func (n *TableNode) findNodeIndex(key string) int {
+	for i, child := range n.Children {
+		if kv, ok := child.(*KeyValueNode); ok && KeysMatch(key, kv.Key.Segments) {
+			return i
+		}
+	}
+
+	return -1
 }
 
 // Node representation of a Key in the TOML specification
@@ -170,4 +231,19 @@ func (n *BooleanNode) NodeLexeme() string {
 
 func (n *BooleanNode) Accept(v Visitor) error {
 	return v.VisitBooleanNode(n)
+}
+
+func KeysMatch(key string, segments []string) bool {
+	keyArr := strings.Split(key, ".")
+	if len(keyArr) != len(segments) {
+		return false
+	}
+
+	for i := range len(keyArr) {
+		if keyArr[i] != segments[i] {
+			return false
+		}
+	}
+
+	return true
 }

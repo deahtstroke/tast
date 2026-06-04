@@ -338,8 +338,7 @@ func (p *Parser) Table() *TableNode {
 		if p.Match(BARE_KEY, BASIC_STRING, LITERAL_STRING) {
 			kv := p.KeyValue()
 
-			err := p.registerKey(kv.Key)
-			if kv != nil && err == nil {
+			if kv != nil {
 				kv.LeadingTrivia = pendingTrivia
 				pendingTrivia = nil
 

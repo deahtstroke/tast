@@ -5,7 +5,16 @@ import (
 	"os"
 )
 
-func Parse(src []byte) (*Document, error) {
+// Reads the a TOML document from a path to a source file
+func LoadFile(path string) (*Document, error) {
+	f, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBytes(f)
+}
+
+func ParseBytes(src []byte) (*Document, error) {
 	scanner := NewScanner(src)
 	scanner.Scan()
 
@@ -18,36 +27,39 @@ func Parse(src []byte) (*Document, error) {
 }
 
 func ParseString(src string) (*Document, error) {
-	return Parse([]byte(src))
+	return ParseBytes([]byte(src))
 }
 
-func ParseFile(path string) (*Document, error) {
-	file, err := os.ReadFile(path)
+func ParseFrom(r io.Reader) (*Document, error) {
+	src, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
-	return Parse(file)
+
+	return ParseBytes(src)
 }
 
-func (d *Document) Format() (string, error) {
-	printer := NewPrinter()
-	return printer.print(d)
-}
-
-func (d *Document) Write(w io.Writer) error {
-	s, err := d.Format()
+func (d *Document) Save(path string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
-	_, err = io.WriteString(w, s)
+
+	s, err := NewPrinter().print(d)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.WriteString(f, s)
 	return err
 }
 
-func (d *Document) WriteFile(path string) error {
-	s, err := d.Format()
-	if err != nil {
-		return err
+func (d *Document) Table(key string) (*TableNode, bool) {
+	for _, node := range d.Content {
+		t, ok := node.(*TableNode)
+		if ok && KeysMatch(key, t.Key.Segments) {
+			return t, true
+		}
 	}
-
-	return os.WriteFile(path, []byte(s), 0o644)
+	return nil, false
 }
