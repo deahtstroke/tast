@@ -53,13 +53,3 @@ func (d *Document) Save(path string) error {
 	_, err = io.WriteString(f, s)
 	return err
 }
-
-func (d *Document) Table(key string) (*TableNode, bool) {
-	for _, node := range d.Content {
-		t, ok := node.(*TableNode)
-		if ok && KeysMatch(key, t.Key.Segments) {
-			return t, true
-		}
-	}
-	return nil, false
-}

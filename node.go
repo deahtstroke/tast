@@ -26,6 +26,19 @@ type Document struct {
 	Content []Node
 }
 
+// Retrives a Table defined by their key
+// Key argument can also be defined as a dotted
+// key or a simple key
+func (d *Document) Table(key string) (*TableNode, bool) {
+	for _, node := range d.Content {
+		t, ok := node.(*TableNode)
+		if ok && KeysMatch(key, t.Key.Segments) {
+			return t, true
+		}
+	}
+	return nil, false
+}
+
 // Trivia really is just comments that start with '#'
 // the only worthwhile state saving for trivia is the
 // raw literal string in the comment
@@ -103,7 +116,7 @@ func (n *TableNode) Delete(key string) bool {
 	}
 
 	n.Children = append(n.Children[:i], n.Children[i+1:]...)
-	return false
+	return true
 }
 
 func (n *TableNode) FindKey(key string) (*KeyValueNode, bool) {

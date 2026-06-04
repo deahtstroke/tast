@@ -120,18 +120,10 @@ func Test_Set(t *testing.T) {
 						Children: []Node{
 							&KeyValueNode{
 								Key: &KeyNode{
-									Segments: []string{"foo.bar"},
+									Segments: []string{"foo", "bar"},
 								},
 								Value: &StringNode{
 									Value: "hello world!",
-								},
-							},
-							&KeyValueNode{
-								Key: &KeyNode{
-									Segments: []string{"hello"},
-								},
-								Value: &StringNode{
-									Value: "world",
 								},
 							},
 						},
@@ -139,23 +131,93 @@ func Test_Set(t *testing.T) {
 				},
 			},
 			table:    "table",
-			key:      "foo",
+			key:      "foo.bar",
 			value:    int64(1),
 			wantType: &IntegerNode{}, // Just need the type, value can be ignored
 			wantErr:  false,
+		},
+		"Simple Key replaced by string node": {
+			doc: &Document{
+				Content: []Node{
+					&TableNode{
+						Key: &KeyNode{
+							Segments: []string{"table"},
+						},
+						Children: []Node{
+							&KeyValueNode{
+								Key: &KeyNode{
+									Segments: []string{"foo", "bar"},
+								},
+								Value: &StringNode{
+									Value: "hello world!",
+								},
+							},
+						},
+					},
+				},
+			},
+			table:    "table",
+			key:      "foo.bar",
+			value:    string("Hello!"),
+			wantType: &StringNode{},
+			wantErr:  false,
+		},
+		"Simple Key replaced by boolean node": {
+			doc: &Document{
+				Content: []Node{
+					&TableNode{
+						Key: &KeyNode{
+							Segments: []string{"table"},
+						},
+						Children: []Node{
+							&KeyValueNode{
+								Key: &KeyNode{
+									Segments: []string{"foo", "bar"},
+								},
+								Value: &StringNode{
+									Value: "hello world!",
+								},
+							},
+						},
+					},
+				},
+			},
+			table:    "table",
+			key:      "foo.bar",
+			value:    bool(true),
+			wantType: &BooleanNode{},
+			wantErr:  false,
+		},
+		"Simple key not found should return false": {
+			doc: &Document{
+				Content: []Node{
+					&TableNode{
+						Key: &KeyNode{
+							Segments: []string{"table"},
+						},
+						Children: []Node{
+							&KeyValueNode{
+								Key: &KeyNode{
+									Segments: []string{"foo"},
+								},
+								Value: &StringNode{
+									Value: "hello world!",
+								},
+							},
+						},
+					},
+				},
+			},
+			table:   "table",
+			key:     "fo",
+			value:   bool(true),
+			wantErr: true,
 		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			table, ok := tt.doc.Table(tt.table)
-			if tt.wantErr {
-				if ok {
-					t.Fatalf("Wanted error, got none")
-				}
-				return
-			}
-
 			if !ok {
 				t.Fatalf("Not expecting error, got one")
 			}
@@ -182,6 +244,104 @@ func Test_Set(t *testing.T) {
 
 			if gotType != wantType {
 				t.Fatalf("expected node type %v, got %v", wantType, gotType)
+			}
+		})
+	}
+}
+
+func Test_Delete(t *testing.T) {
+	tests := map[string]struct {
+		doc       *Document
+		tableKey  string
+		deleteKey string
+		wantErr   bool
+	}{
+		"Delete should find simple keys": {
+			doc: &Document{
+				Content: []Node{
+					&TableNode{
+						Key: &KeyNode{
+							Segments: []string{"table"},
+						},
+						Children: []Node{
+							&KeyValueNode{
+								Key: &KeyNode{
+									Segments: []string{"key"},
+								},
+								Value: &StringNode{Value: "hello world!"},
+							},
+						},
+					},
+				},
+			},
+			tableKey:  "table",
+			deleteKey: "key",
+			wantErr:   false,
+		},
+		"Delete should find dotted keys": {
+			doc: &Document{
+				Content: []Node{
+					&TableNode{
+						Key: &KeyNode{
+							Segments: []string{"table"},
+						},
+						Children: []Node{
+							&KeyValueNode{
+								Key: &KeyNode{
+									Segments: []string{"foo", "bar"},
+								},
+								Value: &StringNode{Value: "hello world!"},
+							},
+						},
+					},
+				},
+			},
+			tableKey:  "table",
+			deleteKey: "foo.bar",
+			wantErr:   false,
+		},
+		"Delete should fail on key not-found": {
+			doc: &Document{
+				Content: []Node{
+					&TableNode{
+						Key: &KeyNode{
+							Segments: []string{"table"},
+						},
+						Children: []Node{
+							&KeyValueNode{
+								Key: &KeyNode{
+									Segments: []string{"foo"},
+								},
+								Value: &StringNode{Value: "hello world!"},
+							},
+						},
+					},
+				},
+			},
+			tableKey:  "table",
+			deleteKey: "bar",
+			wantErr:   true,
+		},
+	}
+
+	for test, tt := range tests {
+		t.Run(test, func(t *testing.T) {
+			table, ok := tt.doc.Table(tt.tableKey)
+			if !ok {
+				t.Fatalf("Expecting table %s, got none", tt.deleteKey)
+			}
+
+			ok = table.Delete(tt.deleteKey)
+
+			if tt.wantErr {
+				if ok {
+					t.Fatalf("Want error, got none")
+				}
+				return
+			}
+
+			if !ok {
+				t.Fatalf("Expected successful deletion unsuccessful")
 			}
 		})
 	}
