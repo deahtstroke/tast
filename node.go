@@ -27,7 +27,7 @@ type Document struct {
 
 // Retrieves a root-level key-value node defined by their key
 // Key argument can be defined as a barekey or a dotted-key
-func (d *Document) KeyValue(key string) (*KeyValueNode, bool) {
+func (d *Document) FindKey(key string) (*KeyValueNode, bool) {
 	for _, node := range d.content {
 		kv, ok := node.(*KeyValueNode)
 		if ok && KeysMatch(key, kv.key.segments) {
@@ -85,33 +85,42 @@ func (n *TableNode) Accept(v Visitor) error {
 }
 
 func (n *TableNode) Set(key string, value any) error {
-	k, exists := n.FindKey(key)
-	if !exists {
-		return fmt.Errorf("Cannot find key %s", key)
+	i := n.findNodeIndex(key)
+	if i == -1 {
+		return fmt.Errorf("tast: key %q not found", key)
 	}
 
-	var node Node
+	kv := n.children[i].(*KeyValueNode)
+
 	switch v := value.(type) {
+	case int:
+		return n.Set(key, int64(v))
+	case int8:
+		return n.Set(key, int64(v))
+	case int32:
+		return n.Set(key, int64(v))
 	case int64:
-		node = &IntegerNode{
+		kv.value = &IntegerNode{
 			value: v,
 		}
 	case string:
-		node = &StringNode{
+		kv.value = &StringNode{
 			value: v,
 		}
+	case float32:
+		return n.Set(key, float64(v))
 	case float64:
-		node = &FloatNode{
+		kv.value = &FloatNode{
 			value: v,
 		}
 	case bool:
-		node = &BooleanNode{
+		kv.value = &BooleanNode{
 			value: v,
 		}
 	default:
+		return fmt.Errorf("tast: unsupported value type %T", value)
 	}
 
-	k.value = node
 	return nil
 }
 
@@ -181,6 +190,39 @@ type KeyValueNode struct {
 	// Note: This field only gets filled if the only tokens leftover
 	// after the dangling trivia are New lines and/or EOF
 	trailingTrivia []Trivia
+}
+
+func (n *KeyValueNode) Set(value any) error {
+	switch v := value.(type) {
+	case int:
+		return n.Set(int64(v))
+	case int8:
+		return n.Set(int64(v))
+	case int32:
+		return n.Set(int64(v))
+	case int64:
+		n.value = &IntegerNode{
+			value: v,
+		}
+	case string:
+		n.value = &StringNode{
+			value: v,
+		}
+	case float32:
+		return n.Set(float64(v))
+	case float64:
+		n.value = &FloatNode{
+			value: v,
+		}
+	case bool:
+		n.value = &BooleanNode{
+			value: v,
+		}
+	default:
+		return fmt.Errorf("tast: unsupported value type %T", value)
+	}
+
+	return nil
 }
 
 func (n *KeyValueNode) Accept(v Visitor) error {

@@ -346,3 +346,96 @@ func Test_Delete(t *testing.T) {
 		})
 	}
 }
+
+func Test_KeyValueSet(t *testing.T) {
+	tests := map[string]struct {
+		doc      *Document
+		keyArg   string
+		value    any
+		nodeType Node
+		wantErr  bool
+	}{
+		"simple key should be found and set": {
+			doc: &Document{
+				content: []Node{
+					&KeyValueNode{
+						key: &KeyNode{
+							segments: []string{"key"},
+						},
+						value: &StringNode{
+							value: "hello <name>",
+						},
+					},
+				},
+			},
+			keyArg:   "key",
+			value:    1,
+			nodeType: &IntegerNode{},
+			wantErr:  false,
+		},
+		"dotted keys should be found and set": {
+			doc: &Document{
+				content: []Node{
+					&KeyValueNode{
+						key: &KeyNode{
+							segments: []string{"foo", "bar"},
+						},
+						value: &StringNode{
+							value: "hello <name>",
+						},
+					},
+				},
+			},
+			keyArg:   "foo.bar",
+			value:    1,
+			nodeType: &IntegerNode{},
+			wantErr:  false,
+		},
+		"unsupported types should error (anything besides Go primitives)": {
+			doc: &Document{
+				content: []Node{
+					&KeyValueNode{
+						key: &KeyNode{
+							segments: []string{"foo"},
+						},
+						value: &StringNode{
+							value: "hello <name>",
+						},
+					},
+				},
+			},
+			keyArg:   "foo",
+			value:    &IntegerNode{value: int64(1)},
+			nodeType: &IntegerNode{},
+			wantErr:  true,
+		},
+	}
+
+	for test, tt := range tests {
+		t.Run(test, func(t *testing.T) {
+			k, ok := tt.doc.FindKey(tt.keyArg)
+			if !ok {
+				t.Fatalf("Unable to find key %s", tt.keyArg)
+			}
+
+			err := k.Set(tt.value)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("Expecting error, got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Not expecting an error, got %v", err)
+			}
+
+			gotType := reflect.TypeOf(k.value)
+			wantType := reflect.TypeOf(tt.nodeType)
+
+			if gotType != wantType {
+				t.Fatalf("expected node type %v, got %v", wantType, gotType)
+			}
+		})
+	}
+}
