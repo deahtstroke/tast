@@ -13,10 +13,10 @@ func Test_Table(t *testing.T) {
 	}{
 		"Single key segment should be found": {
 			doc: &Document{
-				Content: []Node{
+				content: []Node{
 					&TableNode{
-						Key: &KeyNode{
-							Segments: []string{"key"},
+						key: &KeyNode{
+							segments: []string{"key"},
 						},
 					},
 				},
@@ -25,10 +25,10 @@ func Test_Table(t *testing.T) {
 		},
 		"Multiple key segments should be found": {
 			doc: &Document{
-				Content: []Node{
+				content: []Node{
 					&TableNode{
-						Key: &KeyNode{
-							Segments: []string{"foo", "bar", "bez"},
+						key: &KeyNode{
+							segments: []string{"foo", "bar", "bez"},
 						},
 					},
 				},
@@ -37,10 +37,10 @@ func Test_Table(t *testing.T) {
 		},
 		"Key not found": {
 			doc: &Document{
-				Content: []Node{
+				content: []Node{
 					&TableNode{
-						Key: &KeyNode{
-							Segments: []string{"foo", "bar", "bez"},
+						key: &KeyNode{
+							segments: []string{"foo", "bar", "bez"},
 						},
 					},
 				},
@@ -78,26 +78,26 @@ func Test_Set(t *testing.T) {
 	}{
 		"Simple key string": {
 			doc: &Document{
-				Content: []Node{
+				content: []Node{
 					&TableNode{
-						Key: &KeyNode{
-							Segments: []string{"table"},
+						key: &KeyNode{
+							segments: []string{"table"},
 						},
-						Children: []Node{
+						children: []Node{
 							&KeyValueNode{
-								Key: &KeyNode{
-									Segments: []string{"foo"},
+								key: &KeyNode{
+									segments: []string{"foo"},
 								},
-								Value: &StringNode{
-									Value: "bar",
+								value: &StringNode{
+									value: "bar",
 								},
 							},
 							&KeyValueNode{
-								Key: &KeyNode{
-									Segments: []string{"hello"},
+								key: &KeyNode{
+									segments: []string{"hello"},
 								},
-								Value: &StringNode{
-									Value: "world",
+								value: &StringNode{
+									value: "world",
 								},
 							},
 						},
@@ -112,18 +112,18 @@ func Test_Set(t *testing.T) {
 		},
 		"dotted key string": {
 			doc: &Document{
-				Content: []Node{
+				content: []Node{
 					&TableNode{
-						Key: &KeyNode{
-							Segments: []string{"table"},
+						key: &KeyNode{
+							segments: []string{"table"},
 						},
-						Children: []Node{
+						children: []Node{
 							&KeyValueNode{
-								Key: &KeyNode{
-									Segments: []string{"foo", "bar"},
+								key: &KeyNode{
+									segments: []string{"foo", "bar"},
 								},
-								Value: &StringNode{
-									Value: "hello world!",
+								value: &StringNode{
+									value: "hello world!",
 								},
 							},
 						},
@@ -138,18 +138,18 @@ func Test_Set(t *testing.T) {
 		},
 		"Simple Key replaced by string node": {
 			doc: &Document{
-				Content: []Node{
+				content: []Node{
 					&TableNode{
-						Key: &KeyNode{
-							Segments: []string{"table"},
+						key: &KeyNode{
+							segments: []string{"table"},
 						},
-						Children: []Node{
+						children: []Node{
 							&KeyValueNode{
-								Key: &KeyNode{
-									Segments: []string{"foo", "bar"},
+								key: &KeyNode{
+									segments: []string{"foo", "bar"},
 								},
-								Value: &StringNode{
-									Value: "hello world!",
+								value: &StringNode{
+									value: "hello world!",
 								},
 							},
 						},
@@ -164,18 +164,18 @@ func Test_Set(t *testing.T) {
 		},
 		"Simple Key replaced by boolean node": {
 			doc: &Document{
-				Content: []Node{
+				content: []Node{
 					&TableNode{
-						Key: &KeyNode{
-							Segments: []string{"table"},
+						key: &KeyNode{
+							segments: []string{"table"},
 						},
-						Children: []Node{
+						children: []Node{
 							&KeyValueNode{
-								Key: &KeyNode{
-									Segments: []string{"foo", "bar"},
+								key: &KeyNode{
+									segments: []string{"foo", "bar"},
 								},
-								Value: &StringNode{
-									Value: "hello world!",
+								value: &StringNode{
+									value: "hello world!",
 								},
 							},
 						},
@@ -190,18 +190,18 @@ func Test_Set(t *testing.T) {
 		},
 		"Simple key not found should return false": {
 			doc: &Document{
-				Content: []Node{
+				content: []Node{
 					&TableNode{
-						Key: &KeyNode{
-							Segments: []string{"table"},
+						key: &KeyNode{
+							segments: []string{"table"},
 						},
-						Children: []Node{
+						children: []Node{
 							&KeyValueNode{
-								Key: &KeyNode{
-									Segments: []string{"foo"},
+								key: &KeyNode{
+									segments: []string{"foo"},
 								},
-								Value: &StringNode{
-									Value: "hello world!",
+								value: &StringNode{
+									value: "hello world!",
 								},
 							},
 						},
@@ -239,7 +239,7 @@ func Test_Set(t *testing.T) {
 				t.Fatalf("key %q not found after Set", tt.key)
 			}
 
-			gotType := reflect.TypeOf(got.Value)
+			gotType := reflect.TypeOf(got.value)
 			wantType := reflect.TypeOf(tt.wantType)
 
 			if gotType != wantType {
@@ -258,17 +258,17 @@ func Test_Delete(t *testing.T) {
 	}{
 		"Delete should find simple keys": {
 			doc: &Document{
-				Content: []Node{
+				content: []Node{
 					&TableNode{
-						Key: &KeyNode{
-							Segments: []string{"table"},
+						key: &KeyNode{
+							segments: []string{"table"},
 						},
-						Children: []Node{
+						children: []Node{
 							&KeyValueNode{
-								Key: &KeyNode{
-									Segments: []string{"key"},
+								key: &KeyNode{
+									segments: []string{"key"},
 								},
-								Value: &StringNode{Value: "hello world!"},
+								value: &StringNode{value: "hello world!"},
 							},
 						},
 					},
@@ -280,17 +280,17 @@ func Test_Delete(t *testing.T) {
 		},
 		"Delete should find dotted keys": {
 			doc: &Document{
-				Content: []Node{
+				content: []Node{
 					&TableNode{
-						Key: &KeyNode{
-							Segments: []string{"table"},
+						key: &KeyNode{
+							segments: []string{"table"},
 						},
-						Children: []Node{
+						children: []Node{
 							&KeyValueNode{
-								Key: &KeyNode{
-									Segments: []string{"foo", "bar"},
+								key: &KeyNode{
+									segments: []string{"foo", "bar"},
 								},
-								Value: &StringNode{Value: "hello world!"},
+								value: &StringNode{value: "hello world!"},
 							},
 						},
 					},
@@ -302,17 +302,17 @@ func Test_Delete(t *testing.T) {
 		},
 		"Delete should fail on key not-found": {
 			doc: &Document{
-				Content: []Node{
+				content: []Node{
 					&TableNode{
-						Key: &KeyNode{
-							Segments: []string{"table"},
+						key: &KeyNode{
+							segments: []string{"table"},
 						},
-						Children: []Node{
+						children: []Node{
 							&KeyValueNode{
-								Key: &KeyNode{
-									Segments: []string{"foo"},
+								key: &KeyNode{
+									segments: []string{"foo"},
 								},
-								Value: &StringNode{Value: "hello world!"},
+								value: &StringNode{value: "hello world!"},
 							},
 						},
 					},

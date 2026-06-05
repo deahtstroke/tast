@@ -14,7 +14,7 @@ func NewPrinter() *Printer {
 
 func (p *Printer) print(doc *Document) (string, error) {
 	var prev Node
-	for _, node := range doc.Content {
+	for _, node := range doc.content {
 		if prev != nil {
 			_, currIsTable := node.(*TableNode)
 			_, prevIsKV := prev.(*KeyValueNode)
@@ -33,18 +33,18 @@ func (p *Printer) print(doc *Document) (string, error) {
 }
 
 func (p *Printer) VisitTableNode(n *TableNode) error {
-	for _, comment := range n.LeadingTrivia {
-		p.buf.WriteString(comment.Lexeme)
+	for _, comment := range n.leadingTrivia {
+		p.buf.WriteString(comment.lexeme)
 		p.buf.WriteString("\n")
 	}
 
 	p.buf.WriteString("[")
-	n.Key.Accept(p)
+	n.key.Accept(p)
 	p.buf.WriteString("]")
 
-	if n.LineTrivia != nil {
+	if n.lineTrivia != nil {
 		p.buf.WriteString(" ")
-		p.buf.WriteString(n.LineTrivia.Lexeme)
+		p.buf.WriteString(n.lineTrivia.lexeme)
 	}
 
 	p.buf.WriteString("\n")
@@ -53,29 +53,29 @@ func (p *Printer) VisitTableNode(n *TableNode) error {
 }
 
 func (p *Printer) VisitKeyValueNode(n *KeyValueNode) error {
-	for _, trivia := range n.LeadingTrivia {
-		p.buf.WriteString(trivia.Lexeme)
+	for _, trivia := range n.leadingTrivia {
+		p.buf.WriteString(trivia.lexeme)
 		p.buf.WriteString("\n")
 	}
 
-	if err := n.Key.Accept(p); err != nil {
+	if err := n.key.Accept(p); err != nil {
 		return err
 	}
 
 	p.buf.WriteString(" = ")
 
-	if err := n.Value.Accept(p); err != nil {
+	if err := n.value.Accept(p); err != nil {
 		return err
 	}
 
-	if n.LineTrivia != nil {
-		p.buf.WriteString(n.LineTrivia.Lexeme)
+	if n.lineTrivia != nil {
+		p.buf.WriteString(n.lineTrivia.lexeme)
 	}
 
 	p.buf.WriteString("\n")
 
-	for _, trivia := range n.TrailingTrivia {
-		p.buf.WriteString(trivia.Lexeme)
+	for _, trivia := range n.trailingTrivia {
+		p.buf.WriteString(trivia.lexeme)
 		p.buf.WriteString("\n")
 	}
 	return nil
@@ -83,7 +83,7 @@ func (p *Printer) VisitKeyValueNode(n *KeyValueNode) error {
 
 func (p *Printer) VisitKeyNode(n *KeyNode) error {
 	lexemes := []string{}
-	for _, token := range n.Tokens {
+	for _, token := range n.tokens {
 		lexemes = append(lexemes, token.Lexeme)
 	}
 	p.buf.WriteString(strings.Join(lexemes, "."))
@@ -91,21 +91,21 @@ func (p *Printer) VisitKeyNode(n *KeyNode) error {
 }
 
 func (p *Printer) VisitStringNode(n *StringNode) error {
-	p.buf.WriteString(n.Token.Lexeme)
+	p.buf.WriteString(n.token.Lexeme)
 	return nil
 }
 
 func (p *Printer) VisitIntegerNode(n *IntegerNode) error {
-	p.buf.WriteString(n.Token.Lexeme)
+	p.buf.WriteString(n.token.Lexeme)
 	return nil
 }
 
 func (p *Printer) VisitFloatNode(n *FloatNode) error {
-	p.buf.WriteString(n.Token.Lexeme)
+	p.buf.WriteString(n.token.Lexeme)
 	return nil
 }
 
 func (p *Printer) VisitBooleanNode(n *BooleanNode) error {
-	p.buf.WriteString(n.Token.Lexeme)
+	p.buf.WriteString(n.token.Lexeme)
 	return nil
 }

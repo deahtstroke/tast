@@ -16,23 +16,33 @@ type Visitor interface {
 }
 
 type Node interface {
-	NodeLexeme() string
 	Accept(Visitor) error
 }
 
 // Top-most node representation of a TOML file
 // in the AST
 type Document struct {
-	Content []Node
+	content []Node
+}
+
+// Retrieves a root-level key-value node defined by their key
+// Key argument can be defined as a barekey or a dotted-key
+func (d *Document) KeyValue(key string) (*KeyValueNode, bool) {
+	for _, node := range d.content {
+		kv, ok := node.(*KeyValueNode)
+		if ok && KeysMatch(key, kv.key.segments) {
+			return kv, true
+		}
+	}
+	return nil, false
 }
 
 // Retrives a Table defined by their key
-// Key argument can also be defined as a dotted
-// key or a simple key
+// Key argument can be defined as a barekey or a dotted-key
 func (d *Document) Table(key string) (*TableNode, bool) {
-	for _, node := range d.Content {
+	for _, node := range d.content {
 		t, ok := node.(*TableNode)
-		if ok && KeysMatch(key, t.Key.Segments) {
+		if ok && KeysMatch(key, t.key.segments) {
 			return t, true
 		}
 	}
@@ -43,35 +53,31 @@ func (d *Document) Table(key string) (*TableNode, bool) {
 // the only worthwhile state saving for trivia is the
 // raw literal string in the comment
 type Trivia struct {
-	Lexeme string
+	lexeme string
 }
 
 // Node reprsentation of a TOML table as specified in
 // https://toml.io/en/v1.1.0#table
 type TableNode struct {
 	// The key of the TableNode
-	Key *KeyNode
+	key *KeyNode
 
 	// Child nodes that belong to this table
-	Children []Node
+	children []Node
 
 	// Any leading comments that may come before the
 	// table itself
-	LeadingTrivia []Trivia
+	leadingTrivia []Trivia
 
 	// Comment in the same line as the table
-	LineTrivia *Trivia
+	lineTrivia *Trivia
 
 	// Any comments that are leftover after the table
 	// itself
-	TrailingTrivia []Trivia
+	trailingTrivia []Trivia
 
-	// Tokens that make up the table-key
-	Tokens []Token
-}
-
-func (n *TableNode) NodeLexeme() string {
-	return "[" + n.Key.NodeLiteral() + "]"
+	// tokens that make up the table-key
+	tokens []token
 }
 
 func (n *TableNode) Accept(v Visitor) error {
@@ -88,24 +94,24 @@ func (n *TableNode) Set(key string, value any) error {
 	switch v := value.(type) {
 	case int64:
 		node = &IntegerNode{
-			Value: v,
+			value: v,
 		}
 	case string:
 		node = &StringNode{
-			Value: v,
+			value: v,
 		}
 	case float64:
 		node = &FloatNode{
-			Value: v,
+			value: v,
 		}
 	case bool:
 		node = &BooleanNode{
-			Value: v,
+			value: v,
 		}
 	default:
 	}
 
-	k.Value = node
+	k.value = node
 	return nil
 }
 
@@ -115,7 +121,7 @@ func (n *TableNode) Delete(key string) bool {
 		return false
 	}
 
-	n.Children = append(n.Children[:i], n.Children[i+1:]...)
+	n.children = append(n.children[:i], n.children[i+1:]...)
 	return true
 }
 
@@ -125,12 +131,12 @@ func (n *TableNode) FindKey(key string) (*KeyValueNode, bool) {
 		return nil, false
 	}
 
-	return n.Children[i].(*KeyValueNode), true
+	return n.children[i].(*KeyValueNode), true
 }
 
 func (n *TableNode) findNodeIndex(key string) int {
-	for i, child := range n.Children {
-		if kv, ok := child.(*KeyValueNode); ok && KeysMatch(key, kv.Key.Segments) {
+	for i, child := range n.children {
+		if kv, ok := child.(*KeyValueNode); ok && KeysMatch(key, kv.key.segments) {
 			return i
 		}
 	}
@@ -141,16 +147,12 @@ func (n *TableNode) findNodeIndex(key string) int {
 // Node representation of a Key in the TOML specification
 // https://toml.io/en/v1.1.0#keys
 type KeyNode struct {
-	// Segments that make up the Key
+	// segments that make up the Key
 	// KeyNodes can be made up of bare-keys and quoted-keys
-	Segments []string
+	segments []string
 
 	// List of scanner tokens that make up this KeyNode
-	Tokens []Token
-}
-
-func (n *KeyNode) NodeLiteral() string {
-	return strings.Join(n.Segments, ".")
+	tokens []token
 }
 
 func (n *KeyNode) Accept(v Visitor) error {
@@ -160,30 +162,25 @@ func (n *KeyNode) Accept(v Visitor) error {
 // Node representation of a Key-Value pair in the TOML specification
 // https://toml.io/en/v1.1.0#keyvalue-pair
 type KeyValueNode struct {
-	// Key identifier that represents this key-value pair
-	Key *KeyNode
+	// key identifier that represents this key-value pair
+	key *KeyNode
 
-	// Value that this key-value pair has
-	Value Node
+	// value that this key-value pair has
+	value Node
 
 	// List of scanner tokens that make up this key-value pair
-	Tokens []Token
+	tokens []token
 
 	// Any leading comments that may come before a key-value node
-	LeadingTrivia []Trivia
+	leadingTrivia []Trivia
 
 	// Comment at the end of the line in a key-value node
-	LineTrivia *Trivia
+	lineTrivia *Trivia
 
 	// Any comments at the end of a key-value node
 	// Note: This field only gets filled if the only tokens leftover
 	// after the dangling trivia are New lines and/or EOF
-	TrailingTrivia []Trivia
-}
-
-func (n *KeyValueNode) NodeLexeme() string {
-	segs := []string{n.Key.NodeLiteral(), n.Value.NodeLexeme()}
-	return strings.Join(segs, " = ")
+	trailingTrivia []Trivia
 }
 
 func (n *KeyValueNode) Accept(v Visitor) error {
@@ -191,12 +188,8 @@ func (n *KeyValueNode) Accept(v Visitor) error {
 }
 
 type StringNode struct {
-	Value string
-	Token Token
-}
-
-func (n *StringNode) NodeLexeme() string {
-	return n.Token.Lexeme
+	value string
+	token token
 }
 
 func (n *StringNode) Accept(v Visitor) error {
@@ -204,12 +197,8 @@ func (n *StringNode) Accept(v Visitor) error {
 }
 
 type IntegerNode struct {
-	Value int64
-	Token Token
-}
-
-func (n *IntegerNode) NodeLexeme() string {
-	return n.Token.Lexeme
+	value int64
+	token token
 }
 
 func (n *IntegerNode) Accept(v Visitor) error {
@@ -217,12 +206,8 @@ func (n *IntegerNode) Accept(v Visitor) error {
 }
 
 type FloatNode struct {
-	Value float64
-	Token Token
-}
-
-func (n *FloatNode) NodeLexeme() string {
-	return n.Token.Lexeme
+	value float64
+	token token
 }
 
 func (n *FloatNode) Accept(v Visitor) error {
@@ -230,16 +215,8 @@ func (n *FloatNode) Accept(v Visitor) error {
 }
 
 type BooleanNode struct {
-	Value bool
-	Token Token
-}
-
-func (n *BooleanNode) NodeLexeme() string {
-	if n.Value {
-		return "true"
-	} else {
-		return "false"
-	}
+	value bool
+	token token
 }
 
 func (n *BooleanNode) Accept(v Visitor) error {

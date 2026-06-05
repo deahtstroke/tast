@@ -21,7 +21,7 @@ const (
 )
 
 type ParseError struct {
-	Token   Token
+	Token   token
 	Message string
 	Code    ParseErrorCode
 }

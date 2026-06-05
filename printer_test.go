@@ -38,15 +38,15 @@ username = "daniel"
 }
 
 func makeDoc(nodes ...Node) *Document {
-	return &Document{Content: nodes}
+	return &Document{content: nodes}
 }
 
 type TableOption func(*TableNode)
 
 func makeTable(keyNode *KeyNode, opts ...TableOption) *TableNode {
 	table := &TableNode{
-		Key:    keyNode,
-		Tokens: keyNode.Tokens,
+		key:    keyNode,
+		tokens: keyNode.tokens,
 	}
 
 	for _, opt := range opts {
@@ -59,14 +59,14 @@ func makeTable(keyNode *KeyNode, opts ...TableOption) *TableNode {
 func withLeading(comments []string) TableOption {
 	return func(tn *TableNode) {
 		for _, c := range comments {
-			tn.LeadingTrivia = append(tn.LeadingTrivia, *makeTrivia(c))
+			tn.leadingTrivia = append(tn.leadingTrivia, *makeTrivia(c))
 		}
 	}
 }
 
 func withTrailing(comment string) TableOption {
 	return func(tn *TableNode) {
-		tn.LineTrivia = makeTrivia(comment)
+		tn.lineTrivia = makeTrivia(comment)
 	}
 }
 
@@ -76,25 +76,25 @@ func makeTrivia(lex string) *Trivia {
 	}
 
 	return &Trivia{
-		Lexeme: lex,
+		lexeme: lex,
 	}
 }
 
 func makeKV(keys []string, value Node) *KeyValueNode {
 	return &KeyValueNode{
-		Key:   makeKey(keys...),
-		Value: value,
+		key:   makeKey(keys...),
+		value: value,
 	}
 }
 
 func makeKey(keys ...string) *KeyNode {
-	var tokens []Token
+	var tokens []token
 	for _, key := range keys {
-		tokens = append(tokens, Token{Lexeme: key})
+		tokens = append(tokens, token{Lexeme: key})
 	}
 	return &KeyNode{
-		Segments: keys,
-		Tokens:   tokens,
+		segments: keys,
+		tokens:   tokens,
 	}
 }
 
@@ -102,29 +102,29 @@ func makeVal(value any) Node {
 	switch v := value.(type) {
 	case float64:
 		return &FloatNode{
-			Value: v,
-			Token: Token{
+			value: v,
+			token: token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}
 	case int64:
 		return &IntegerNode{
-			Value: int64(v),
-			Token: Token{
+			value: int64(v),
+			token: token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}
 	case string:
 		return &StringNode{
-			Value: v,
-			Token: Token{
+			value: v,
+			token: token{
 				Lexeme: fmt.Sprintf("\"%v\"", v),
 			},
 		}
 	case bool:
 		return &BooleanNode{
-			Value: v,
-			Token: Token{
+			value: v,
+			token: token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}

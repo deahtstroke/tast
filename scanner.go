@@ -6,8 +6,8 @@ import (
 )
 
 type Scanner struct {
-	Source []byte
-	Tokens []Token
+	source []byte
+	tokens []token
 
 	// Internal reading state
 	current int
@@ -58,7 +58,7 @@ const (
 	EOF
 )
 
-type Token struct {
+type token struct {
 	Type    TokenType
 	Lexeme  string
 	Literal any
@@ -67,20 +67,24 @@ type Token struct {
 
 func NewScanner(src []byte) *Scanner {
 	return &Scanner{
-		Source: src,
+		source:  src,
+		tokens:  []token{},
+		current: 0,
+		line:    0,
+		start:   0,
 	}
 }
 
 func (s *Scanner) Scan() {
 	for !s.isAtEnd() {
 		s.start = s.current
-		s.scan()
+		s.scanNext()
 	}
 
-	s.Tokens = append(s.Tokens, Token{Type: EOF, Lexeme: "", Line: int64(s.line)})
+	s.tokens = append(s.tokens, token{Type: EOF, Lexeme: "", Line: int64(s.line)})
 }
 
-func (s *Scanner) scan() {
+func (s *Scanner) scanNext() {
 	currentChar := s.advance()
 
 	switch currentChar {
@@ -143,10 +147,10 @@ func (s *Scanner) scan() {
 
 func (s *Scanner) matchSequence(expected string) bool {
 	for i, c := range expected {
-		if s.current+i >= len(s.Source) {
+		if s.current+i >= len(s.source) {
 			return false
 		}
-		if rune(s.Source[s.current+i]) != c {
+		if rune(s.source[s.current+i]) != c {
 			return false
 		}
 	}
@@ -169,7 +173,7 @@ func isAlphanumeric(b byte) bool {
 }
 
 func (s *Scanner) advance() byte {
-	curr := s.Source[s.current]
+	curr := s.source[s.current]
 	s.current++
 	return curr
 }
@@ -193,11 +197,11 @@ func (s *Scanner) peekNext() byte {
 // Looks at the value of the source at the current index + an
 // arbitrary offset value without consuming it
 func (s *Scanner) peekAt(offset int) byte {
-	if s.current+offset >= len(s.Source) {
+	if s.current+offset >= len(s.source) {
 		return 0
 	}
 
-	return s.Source[s.current+offset]
+	return s.source[s.current+offset]
 }
 
 func (s *Scanner) addToken(t TokenType) {
@@ -205,8 +209,8 @@ func (s *Scanner) addToken(t TokenType) {
 }
 
 func (s *Scanner) addTokenValue(t TokenType, value any) {
-	text := string(s.Source[s.start:s.current])
-	s.Tokens = append(s.Tokens, Token{
+	text := string(s.source[s.start:s.current])
+	s.tokens = append(s.tokens, token{
 		Type:    t,
 		Lexeme:  text,
 		Literal: value,
@@ -217,14 +221,14 @@ func (s *Scanner) addTokenValue(t TokenType, value any) {
 // Checks to see if the current pointer is off bounds from the
 // length of the source byte array
 func (s *Scanner) isAtEnd() bool {
-	return s.current >= len(s.Source)
+	return s.current >= len(s.source)
 }
 
 func (s *Scanner) comment() {
 	for s.peek() != '\n' && !s.isAtEnd() {
 		s.advance()
 	}
-	commentValue := s.Source[s.start:s.current]
+	commentValue := s.source[s.start:s.current]
 
 	// make up for finding a newline character
 	s.line++
@@ -247,7 +251,7 @@ func (s *Scanner) number() {
 		}
 	}
 
-	lexeme := s.Source[s.start:s.current]
+	lexeme := s.source[s.start:s.current]
 
 	// Cleanup any underscores
 	cleaned := strings.ReplaceAll(string(lexeme), "_", "")
@@ -266,14 +270,14 @@ func (s *Scanner) key() {
 		s.advance()
 	}
 
-	text := string(s.Source[s.start:s.current])
+	text := string(s.source[s.start:s.current])
 	token, ok := reserved[text]
 	if ok {
 		s.addToken(token)
 		return
 	}
 
-	lexeme := s.Source[s.start:s.current]
+	lexeme := s.source[s.start:s.current]
 	s.addTokenValue(BARE_KEY, string(lexeme))
 }
 
@@ -297,7 +301,7 @@ func (s *Scanner) multilineBasicString() {
 	s.advance() // Trim second '"'
 	s.advance() // Trim third '"'
 
-	strValue := s.Source[s.start+3 : s.current-3]
+	strValue := s.source[s.start+3 : s.current-3]
 
 	// trim initial newline value as per the TOML spec
 	if len(strValue) > 0 {
@@ -327,7 +331,7 @@ func (s *Scanner) basicString() {
 
 	// lexeme = s.Source[s.start:s.current] → "hello" (with quotes, handled by addTokenValue)
 	// literal = just the content between the quotes
-	strValue := s.Source[s.start+1 : s.current-1]
+	strValue := s.source[s.start+1 : s.current-1]
 
 	s.addTokenValue(BASIC_STRING, string(strValue))
 }

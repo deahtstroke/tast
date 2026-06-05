@@ -9,7 +9,7 @@ import (
 )
 
 type Parser struct {
-	Tokens  []Token
+	tokens  []token
 	current int
 
 	errors        []ParseError
@@ -18,16 +18,16 @@ type Parser struct {
 	pendingTrivia []Trivia
 }
 
-func NewParser(tokens []Token) *Parser {
+func NewParser(tokens []token) *Parser {
 	return &Parser{
-		Tokens: tokens,
+		tokens: tokens,
 		keys:   make(map[string]struct{}),
 		tables: make(map[string]struct{}),
 	}
 }
 
 func (p *Parser) registerTable(table *KeyNode) error {
-	tableKey := strings.Join(table.Segments, ".")
+	tableKey := strings.Join(table.segments, ".")
 	if _, exists := p.tables[tableKey]; exists {
 		msg := fmt.Sprintf("Duplicate table exists with signature %s", tableKey)
 		p.addParseErrorNoTokens(msg, ErrDuplicateTable)
@@ -38,7 +38,7 @@ func (p *Parser) registerTable(table *KeyNode) error {
 }
 
 func (p *Parser) registerKey(key *KeyNode) error {
-	literalKey := strings.Join(key.Segments, ".")
+	literalKey := strings.Join(key.segments, ".")
 	if _, exists := p.keys[literalKey]; exists {
 		msg := fmt.Sprintf("Duplicate key exists with signature %s", literalKey)
 		p.addParseErrorNoTokens(msg, ErrDuplicateKey)
@@ -54,7 +54,7 @@ func (p *Parser) parse() (*Document, []ParseError) {
 	for !p.isAtEnd() {
 		node := p.nextNode()
 		if node != nil {
-			document.Content = append(document.Content, node)
+			document.content = append(document.content, node)
 		}
 	}
 
@@ -65,12 +65,12 @@ func (p *Parser) parse() (*Document, []ParseError) {
 
 func (p *Parser) handleOrphanedTrivia(document *Document) {
 	if p.pendingTrivia != nil {
-		lastNode := document.Content[len(document.Content)-1]
+		lastNode := document.content[len(document.content)-1]
 		switch n := lastNode.(type) {
 		case *KeyValueNode:
-			n.TrailingTrivia = p.pendingTrivia
+			n.trailingTrivia = p.pendingTrivia
 		case *TableNode:
-			n.TrailingTrivia = p.pendingTrivia
+			n.trailingTrivia = p.pendingTrivia
 		default:
 		}
 	}
@@ -87,7 +87,7 @@ func (p *Parser) nextNode() Node {
 			return nil
 		}
 
-		node.LeadingTrivia = leading
+		node.leadingTrivia = leading
 		return node
 	case p.Match(BARE_KEY, BASIC_STRING, LITERAL_STRING):
 		node := p.KeyValue()
@@ -96,7 +96,7 @@ func (p *Parser) nextNode() Node {
 			return nil
 		}
 
-		node.LeadingTrivia = leading
+		node.leadingTrivia = leading
 		return node
 	default:
 		p.advance()
@@ -122,7 +122,7 @@ func (p *Parser) getLeadingTrivia() []Trivia {
 
 		if p.check(COMMENT) {
 			comment := p.advance()
-			trivia = append(trivia, Trivia{Lexeme: comment.Lexeme})
+			trivia = append(trivia, Trivia{lexeme: comment.Lexeme})
 			continue
 		}
 
@@ -147,7 +147,7 @@ func (p *Parser) addParseErrorNoTokens(msg string, code ParseErrorCode) {
 	p.errors = append(p.errors, ParseError{Message: msg, Code: code})
 }
 
-func (p *Parser) addParseError(token Token, msg string, code ParseErrorCode) {
+func (p *Parser) addParseError(token token, msg string, code ParseErrorCode) {
 	p.errors = append(p.errors, ParseError{Token: token, Message: msg, Code: code})
 }
 
@@ -157,7 +157,7 @@ func (p *Parser) KeyValue() *KeyValueNode {
 	if key == nil {
 		return nil
 	}
-	keyValueNode.Key = key
+	keyValueNode.key = key
 
 	if err := p.registerKey(key); err != nil {
 		return nil
@@ -173,11 +173,11 @@ func (p *Parser) KeyValue() *KeyValueNode {
 		p.addParseError(p.peek(), "unspecified value for after key", ErrUnspecifiedValueForKey)
 		return nil
 	}
-	keyValueNode.Value = value
+	keyValueNode.value = value
 
 	if p.check(COMMENT) {
 		comment := p.advance()
-		keyValueNode.LineTrivia = &Trivia{Lexeme: comment.Lexeme}
+		keyValueNode.lineTrivia = &Trivia{lexeme: comment.Lexeme}
 	}
 
 	return keyValueNode
@@ -226,15 +226,15 @@ func createStringNode(p *Parser) Node {
 	}
 
 	return &StringNode{
-		Value: val,
-		Token: p.previous(),
+		value: val,
+		token: p.previous(),
 	}
 }
 
 func createBoolNode(p *Parser, b TokenType) Node {
 	return &BooleanNode{
-		Value: b == TRUE,
-		Token: p.previous(),
+		value: b == TRUE,
+		token: p.previous(),
 	}
 }
 
@@ -245,8 +245,8 @@ func createInfinityNode(p *Parser, operator TokenType) Node {
 	}
 
 	return &IntegerNode{
-		Value: int64(val),
-		Token: p.previous(),
+		value: int64(val),
+		token: p.previous(),
 	}
 }
 
@@ -262,8 +262,8 @@ func createIntNode(p *Parser, operator TokenType) Node {
 	}
 
 	return &IntegerNode{
-		Value: val,
-		Token: p.previous(),
+		value: val,
+		token: p.previous(),
 	}
 }
 
@@ -279,8 +279,8 @@ func createFloatNode(p *Parser, operator TokenType) Node {
 	}
 
 	return &FloatNode{
-		Value: val,
-		Token: p.previous(),
+		value: val,
+		token: p.previous(),
 	}
 }
 
@@ -301,7 +301,7 @@ func (p *Parser) Table() *TableNode {
 	if err := p.registerTable(key); err != nil {
 		return nil
 	}
-	tableNode.Key = key
+	tableNode.key = key
 
 	if !p.Match(RIGHT_BRACKET) {
 		p.addParseError(p.peek(), "Expecting closing bracket ']' after key definition", ErrMissingClosingBracket)
@@ -311,7 +311,7 @@ func (p *Parser) Table() *TableNode {
 	// Trailing comment
 	if p.check(COMMENT) {
 		comment := p.advance()
-		tableNode.LineTrivia = &Trivia{Lexeme: comment.Lexeme}
+		tableNode.lineTrivia = &Trivia{lexeme: comment.Lexeme}
 	}
 
 	outer := p.keys
@@ -339,7 +339,7 @@ func (p *Parser) Table() *TableNode {
 			kv := p.KeyValue()
 
 			if kv != nil {
-				kv.LeadingTrivia = pendingTrivia
+				kv.leadingTrivia = pendingTrivia
 				pendingTrivia = nil
 
 				children = append(children, kv)
@@ -353,7 +353,7 @@ func (p *Parser) Table() *TableNode {
 	// Buffer the pending trivia if there's any
 	p.pendingTrivia = pendingTrivia
 
-	tableNode.Children = children
+	tableNode.children = children
 	return tableNode
 }
 
@@ -369,8 +369,8 @@ func (p *Parser) Key() *KeyNode {
 	}
 
 	node := &KeyNode{
-		Segments: []string{literal},
-		Tokens:   []Token{curr},
+		segments: []string{literal},
+		tokens:   []token{curr},
 	}
 
 	for p.Match(DOT) {
@@ -380,8 +380,8 @@ func (p *Parser) Key() *KeyNode {
 		}
 
 		segment := p.previous()
-		node.Segments = append(node.Segments, segment.Literal.(string))
-		node.Tokens = append(node.Tokens, segment)
+		node.segments = append(node.segments, segment.Literal.(string))
+		node.tokens = append(node.tokens, segment)
 	}
 
 	return node
@@ -404,21 +404,21 @@ func (p *Parser) check(token TokenType) bool {
 	return p.peek().Type == token
 }
 
-func (p *Parser) advance() Token {
+func (p *Parser) advance() token {
 	if !p.isAtEnd() {
 		p.current++
 	}
 	return p.previous()
 }
 
-func (p *Parser) peek() Token {
-	return p.Tokens[p.current]
+func (p *Parser) peek() token {
+	return p.tokens[p.current]
 }
 
 func (p *Parser) isAtEnd() bool {
 	return p.peek().Type == EOF
 }
 
-func (p *Parser) previous() Token {
-	return p.Tokens[p.current-1]
+func (p *Parser) previous() token {
+	return p.tokens[p.current-1]
 }

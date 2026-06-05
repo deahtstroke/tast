@@ -8,7 +8,7 @@ import (
 )
 
 func TestParse(t *testing.T) {
-	f, err := os.OpenFile("./testdata/test.toml", os.O_APPEND|os.O_APPEND|os.O_CREATE, 0o600)
+	f, err := os.OpenFile("./testdata/test.toml", os.O_APPEND|os.O_CREATE, 0o600)
 	if err != nil {
 		t.Fatal("Unable to open file test.toml")
 	}
