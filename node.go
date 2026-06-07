@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const STRING_SEPARATOR = "."
+
 type Visitor interface {
 	VisitTableNode(*TableNode) error
 	VisitKeyNode(*KeyNode) error
@@ -49,6 +51,11 @@ func (d *Document) Table(key string) (*TableNode, bool) {
 	return nil, false
 }
 
+func (d *Document) String() (string, error) {
+	p := NewPrinter()
+	return p.print(d)
+}
+
 // Trivia really is just comments that start with '#'
 // the only worthwhile state saving for trivia is the
 // raw literal string in the comment
@@ -82,6 +89,10 @@ type TableNode struct {
 
 func (n *TableNode) Accept(v Visitor) error {
 	return v.VisitTableNode(n)
+}
+
+func (n *TableNode) Key() string {
+	return n.key.Key()
 }
 
 func (n *TableNode) Set(key string, value any) error {
@@ -164,6 +175,14 @@ type KeyNode struct {
 	tokens []token
 }
 
+func (n *KeyNode) Key() string {
+	if len(n.segments) == 0 {
+		return ""
+	}
+
+	return strings.Join(n.segments, STRING_SEPARATOR)
+}
+
 func (n *KeyNode) Accept(v Visitor) error {
 	return v.VisitKeyNode(n)
 }
@@ -192,30 +211,66 @@ type KeyValueNode struct {
 	trailingTrivia []Trivia
 }
 
-func (n *KeyValueNode) Set(value any) error {
+func (kv *KeyValueNode) Int() (int64, bool) {
+	i, ok := kv.value.(*IntegerNode)
+	if !ok {
+		return -1, false
+	}
+
+	return i.value, true
+}
+
+func (kv *KeyValueNode) String() (string, bool) {
+	s, ok := kv.value.(*StringNode)
+	if !ok {
+		return "", false
+	}
+
+	return s.value, true
+}
+
+func (kv *KeyValueNode) Bool() (bool, bool) {
+	b, ok := kv.value.(*BooleanNode)
+	if !ok {
+		return false, false
+	}
+
+	return b.value, true
+}
+
+func (kv *KeyValueNode) Float() (float64, bool) {
+	f, ok := kv.value.(*FloatNode)
+	if !ok {
+		return 0.0, false
+	}
+
+	return f.value, false
+}
+
+func (kv *KeyValueNode) Set(value any) error {
 	switch v := value.(type) {
 	case int:
-		return n.Set(int64(v))
+		return kv.Set(int64(v))
 	case int8:
-		return n.Set(int64(v))
+		return kv.Set(int64(v))
 	case int32:
-		return n.Set(int64(v))
+		return kv.Set(int64(v))
 	case int64:
-		n.value = &IntegerNode{
+		kv.value = &IntegerNode{
 			value: v,
 		}
 	case string:
-		n.value = &StringNode{
+		kv.value = &StringNode{
 			value: v,
 		}
 	case float32:
-		return n.Set(float64(v))
+		return kv.Set(float64(v))
 	case float64:
-		n.value = &FloatNode{
+		kv.value = &FloatNode{
 			value: v,
 		}
 	case bool:
-		n.value = &BooleanNode{
+		kv.value = &BooleanNode{
 			value: v,
 		}
 	default:
@@ -225,8 +280,8 @@ func (n *KeyValueNode) Set(value any) error {
 	return nil
 }
 
-func (n *KeyValueNode) Accept(v Visitor) error {
-	return v.VisitKeyValueNode(n)
+func (kv *KeyValueNode) Accept(v Visitor) error {
+	return v.VisitKeyValueNode(kv)
 }
 
 type StringNode struct {
@@ -266,7 +321,7 @@ func (n *BooleanNode) Accept(v Visitor) error {
 }
 
 func KeysMatch(key string, segments []string) bool {
-	keyArr := strings.Split(key, ".")
+	keyArr := strings.Split(key, STRING_SEPARATOR)
 	if len(keyArr) != len(segments) {
 		return false
 	}

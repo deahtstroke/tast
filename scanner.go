@@ -1,6 +1,7 @@
 package tast
 
 import (
+	"log"
 	"strconv"
 	"strings"
 )
@@ -260,7 +261,10 @@ func (s *Scanner) number() {
 		floatVal, _ := strconv.ParseFloat(cleaned, 64)
 		s.addTokenValue(FLOAT, floatVal)
 	} else {
-		intVal, _ := strconv.Atoi(cleaned)
+		intVal, err := strconv.ParseInt(cleaned, 10, 64)
+		if err != nil {
+			log.Printf("err: %v", err)
+		}
 		s.addTokenValue(INTEGER, intVal)
 	}
 }

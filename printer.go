@@ -47,6 +47,10 @@ func (p *Printer) VisitTableNode(n *TableNode) error {
 		p.buf.WriteString(n.lineTrivia.lexeme)
 	}
 
+	for _, c := range n.children {
+		p.VisitKeyValueNode(c.(*KeyValueNode))
+	}
+
 	p.buf.WriteString("\n")
 
 	return nil
