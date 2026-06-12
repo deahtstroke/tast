@@ -48,12 +48,24 @@ func (c ParseErrorCode) String() string {
 		return "ErrDuplicateKey"
 	case ErrUnspecifiedValueForKey:
 		return "ErrUnspecifiedValueForKey"
-
 	default:
 		return "Unknown error code"
 	}
 }
 
 func (e ParseError) Error() string {
-	return fmt.Sprintf("[line %d] at %q (code %s): %s", e.Token.Line, e.Token.Lexeme, e.Code, e.Message)
+	return fmt.Sprintf("tast [%s]: parse error at %d:%d: %s",
+		e.Code.String(), e.Token.Line, e.Token.Column, e.Message)
+}
+
+type ScanError struct {
+	Line    int
+	Column  int
+	Offset  int
+	Message string
+}
+
+func (e ScanError) Error() string {
+	return fmt.Sprintf("tast: scan error at %d:%d (offset %d): %s",
+		e.Line, e.Column, e.Offset, e.Message)
 }

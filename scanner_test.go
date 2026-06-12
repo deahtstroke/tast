@@ -2,6 +2,9 @@ package tast
 
 import "testing"
 
+func Test_Scan(t *testing.T) {
+}
+
 func Test_IntegerNode(t *testing.T) {
 	tests := map[string]struct {
 		source    string
@@ -124,7 +127,7 @@ func Test_KeyNode(t *testing.T) {
 	}
 }
 
-func Test_reservedKeys(t *testing.T) {
+func Test_ReservedKeys(t *testing.T) {
 	tests := map[string]struct {
 		source    []byte
 		tokenType TokenType

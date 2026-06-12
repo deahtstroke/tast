@@ -30,7 +30,7 @@ func (p *Parser) registerTable(table *KeyNode) error {
 	tableKey := strings.Join(table.segments, ".")
 	if _, exists := p.tables[tableKey]; exists {
 		msg := fmt.Sprintf("Duplicate table exists with signature %s", tableKey)
-		p.addParseErrorNoTokens(msg, ErrDuplicateTable)
+		p.addErrorNoToken(msg, ErrDuplicateTable)
 	}
 
 	p.tables[tableKey] = struct{}{}
@@ -41,7 +41,7 @@ func (p *Parser) registerKey(key *KeyNode) error {
 	literalKey := strings.Join(key.segments, ".")
 	if _, exists := p.keys[literalKey]; exists {
 		msg := fmt.Sprintf("Duplicate key exists with signature %s", literalKey)
-		p.addParseErrorNoTokens(msg, ErrDuplicateKey)
+		p.addErrorNoToken(msg, ErrDuplicateKey)
 		return errors.New(msg)
 	}
 
@@ -143,12 +143,12 @@ func (p *Parser) synchronize() {
 	}
 }
 
-func (p *Parser) addParseErrorNoTokens(msg string, code ParseErrorCode) {
-	p.errors = append(p.errors, ParseError{Message: msg, Code: code})
+func (p *Parser) addError(token token, msg string, code ParseErrorCode) {
+	p.errors = append(p.errors, ParseError{Token: token, Message: msg, Code: code})
 }
 
-func (p *Parser) addParseError(token token, msg string, code ParseErrorCode) {
-	p.errors = append(p.errors, ParseError{Token: token, Message: msg, Code: code})
+func (p *Parser) addErrorNoToken(msg string, code ParseErrorCode) {
+	p.addError(token{}, msg, code)
 }
 
 func (p *Parser) KeyValue() *KeyValueNode {
@@ -164,13 +164,13 @@ func (p *Parser) KeyValue() *KeyValueNode {
 	}
 
 	if !p.Match(EQUAL) {
-		p.addParseError(p.peek(), "expecting assignment operator '=' after key", ErrMissingAssignmentAfterKey)
+		p.addError(p.peek(), "expecting assignment operator '=' after key", ErrMissingAssignmentAfterKey)
 		return nil
 	}
 
 	value := p.value()
 	if value == nil {
-		p.addParseError(p.peek(), "unspecified value for after key", ErrUnspecifiedValueForKey)
+		p.addError(p.peek(), "unspecified value for after key", ErrUnspecifiedValueForKey)
 		return nil
 	}
 	keyValueNode.value = value
@@ -194,7 +194,7 @@ func (p *Parser) value() Node {
 		case p.Match(INF):
 			return createInfinityNode(p, operator)
 		default:
-			p.addParseError(p.peek(), "Unable to recognize token that follows -/+", ErrUnrecognizedToken)
+			p.addError(p.peek(), "Unable to recognize token that follows -/+", ErrUnrecognizedToken)
 			return nil
 		}
 	}
@@ -221,7 +221,7 @@ func (p *Parser) value() Node {
 func createStringNode(p *Parser) Node {
 	val, ok := p.previous().Literal.(string)
 	if !ok {
-		p.addParseError(p.peek(), "Unable to parse value as string", ErrParsingString)
+		p.addError(p.peek(), "Unable to parse value as string", ErrParsingString)
 		return nil
 	}
 
@@ -253,7 +253,7 @@ func createInfinityNode(p *Parser, operator TokenType) Node {
 func createIntNode(p *Parser, operator TokenType) Node {
 	val, ok := p.previous().Literal.(int64)
 	if !ok {
-		p.addParseError(p.peek(), "Unable to parse value as int64", ErrParsingInt)
+		p.addError(p.peek(), "Unable to parse value as int64", ErrParsingInt)
 		return nil
 	}
 
@@ -270,7 +270,7 @@ func createIntNode(p *Parser, operator TokenType) Node {
 func createFloatNode(p *Parser, operator TokenType) Node {
 	val, ok := p.previous().Literal.(float64)
 	if !ok {
-		p.addParseError(p.peek(), "Unable to parse value to float64", ErrParsingFloat)
+		p.addError(p.peek(), "Unable to parse value to float64", ErrParsingFloat)
 		return nil
 	}
 
@@ -289,7 +289,7 @@ func createFloatNode(p *Parser, operator TokenType) Node {
 func (p *Parser) Table() *TableNode {
 	tableNode := &TableNode{}
 	if !p.Match(BARE_KEY, BASIC_STRING) {
-		p.addParseError(p.peek(), "Expected a key after left-bracket", ErrMalformedTableKey)
+		p.addError(p.peek(), "Expected a key after left-bracket", ErrMalformedTableKey)
 		return nil
 	}
 
@@ -304,7 +304,7 @@ func (p *Parser) Table() *TableNode {
 	tableNode.key = key
 
 	if !p.Match(RIGHT_BRACKET) {
-		p.addParseError(p.peek(), "Expecting closing bracket ']' after key definition", ErrMissingClosingBracket)
+		p.addError(p.peek(), "Expecting closing bracket ']' after key definition", ErrMissingClosingBracket)
 		return nil
 	}
 
@@ -364,7 +364,7 @@ func (p *Parser) Key() *KeyNode {
 
 	literal, ok := curr.Literal.(string)
 	if !ok {
-		p.addParseError(p.peek(), fmt.Sprintf("Unable to convert token literal %s to string", curr.Lexeme), ErrParsingString)
+		p.addError(p.peek(), fmt.Sprintf("Unable to convert token literal %s to string", curr.Lexeme), ErrParsingString)
 		return nil
 	}
 
@@ -375,7 +375,7 @@ func (p *Parser) Key() *KeyNode {
 
 	for p.Match(DOT) {
 		if !p.Match(BASIC_STRING, BARE_KEY, LITERAL_STRING) {
-			p.addParseError(p.peek(), "Expected string or bare key after dot '.'", ErrNoKeyAfterDot)
+			p.addError(p.peek(), "Expected string or bare key after dot '.'", ErrNoKeyAfterDot)
 			return nil
 		}
 
