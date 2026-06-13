@@ -3,6 +3,61 @@ package tast
 import "testing"
 
 func Test_Scan(t *testing.T) {
+	tests := map[string]struct {
+		sourceBytes    []byte
+		expectedTokens []token
+		wantErr        bool
+	}{
+		"simple key value": {
+			sourceBytes: []byte(`foo = "bar"`),
+			expectedTokens: []token{
+				{Type: BARE_KEY, Lexeme: "foo", Literal: "foo", Line: 1, Column: 0},
+				{Type: EQUAL, Lexeme: "=", Literal: "=", Line: 1, Column: 5},
+				{Type: BASIC_STRING, Lexeme: `"bar"`, Literal: "bar", Line: 1, Column: 7},
+				{Type: EOF},
+			},
+		},
+		"unterminated string should error": {
+			sourceBytes: []byte(`foo = "bar`),
+			wantErr:     true,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			scanner := NewScanner(tt.sourceBytes)
+			tokens, err := scanner.Scan()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expecting error, got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected scanner error: %v", err)
+			}
+
+			if len(tokens) != len(tt.expectedTokens) {
+				t.Fatalf("expected %d tokens, got %d: %v", len(tt.expectedTokens), len(tokens), tokens)
+			}
+
+			for i, want := range tt.expectedTokens {
+				got := tokens[i]
+				if got.Type != want.Type {
+					t.Errorf("token %d: expected type %v, got %v", i, want.Type, got.Type)
+				}
+
+				if want.Lexeme != "" && got.Lexeme != want.Lexeme {
+					t.Errorf("token %d: expected lexeme %v, got %v", i, want.Lexeme, got.Lexeme)
+				}
+
+				if want.Literal != nil && got.Literal != want.Literal {
+					t.Errorf("token %d: expected literal %v, got %v", i, want.Literal, got.Literal)
+				}
+			}
+		})
+	}
 }
 
 func Test_IntegerNode(t *testing.T) {
@@ -66,18 +121,21 @@ func Test_IntegerNode(t *testing.T) {
 				current: 0,
 			}
 
-			s.Scan()
-
-			if s.tokens[0].Type != tt.tokenType {
-				t.Fatalf("Incorrect token type: Expected %v. Got %v", INTEGER, s.tokens[0].Type)
+			tokens, err := s.Scan()
+			if err != nil {
+				t.Fatalf("Not expecting error, got: %v", err)
 			}
 
-			if s.tokens[0].Literal != tt.literal {
-				t.Fatalf("Incorrect literal value for token: Expected: %v. Got: %v", tt.literal, s.tokens[0].Literal)
+			if tokens[0].Type != tt.tokenType {
+				t.Fatalf("Incorrect token type: Expected %v. Got %v", INTEGER, tokens[0].Type)
 			}
 
-			if s.tokens[0].Lexeme != tt.lexeme {
-				t.Fatalf("Incorrect lexeme value for token: Expected: %s. Got: %s", tt.lexeme, s.tokens[0].Lexeme)
+			if tokens[0].Literal != tt.literal {
+				t.Fatalf("Incorrect literal value for token: Expected: %v. Got: %v", tt.literal, tokens[0].Literal)
+			}
+
+			if tokens[0].Lexeme != tt.lexeme {
+				t.Fatalf("Incorrect lexeme value for token: Expected: %s. Got: %s", tt.lexeme, tokens[0].Lexeme)
 			}
 		})
 	}
@@ -115,13 +173,16 @@ func Test_KeyNode(t *testing.T) {
 				line:    0,
 			}
 
-			scanner.Scan()
-			if scanner.tokens[0].Type != tt.tokenType {
-				t.Fatalf("Incorrect token type: Expected %v. Got %v", INTEGER, scanner.tokens[0].Type)
+			tokens, err := scanner.Scan()
+			if err != nil {
+				t.Fatalf("Not expecting error, got: %v", err)
+			}
+			if tokens[0].Type != tt.tokenType {
+				t.Fatalf("Incorrect token type: Expected %v. Got %v", INTEGER, tokens[0].Type)
 			}
 
-			if scanner.tokens[0].Literal != tt.literal {
-				t.Fatalf("Incorrect literal value for token: Expected: %v. Got: %v", tt.literal, scanner.tokens[0].Literal)
+			if tokens[0].Literal != tt.literal {
+				t.Fatalf("Incorrect literal value for token: Expected: %v. Got: %v", tt.literal, tokens[0].Literal)
 			}
 		})
 	}
@@ -159,9 +220,13 @@ func Test_ReservedKeys(t *testing.T) {
 				line:    0,
 			}
 
-			scanner.Scan()
-			if scanner.tokens[0].Type != tt.tokenType {
-				t.Fatalf("Incorrect token type: Expected %v. Got %v", tt.tokenType, scanner.tokens[0].Type)
+			tokens, err := scanner.Scan()
+			if err != nil {
+				t.Fatalf("Not expecting error, got: %v", err)
+			}
+
+			if tokens[0].Type != tt.tokenType {
+				t.Fatalf("Incorrect token type: Expected %v. Got %v", tt.tokenType, tokens[0].Type)
 			}
 		})
 	}
@@ -207,14 +272,17 @@ My name is.
 				current: 0,
 			}
 
-			s.Scan()
-
-			if s.tokens[0].Type != tt.tokenType {
-				t.Fatalf("Incorrect token type: Expected String %v. Got %v", tt.tokenType, s.tokens[0].Type)
+			tokens, err := s.Scan()
+			if err != nil {
+				t.Fatalf("Not expecting error, got: %v", err)
 			}
 
-			if s.tokens[0].Literal != tt.text {
-				t.Fatalf("Incorrect literal value for token: Expected: %s. Got: %v", tt.text, s.tokens[0].Literal)
+			if tokens[0].Type != tt.tokenType {
+				t.Fatalf("Incorrect token type: Expected String %v. Got %v", tt.tokenType, tokens[0].Type)
+			}
+
+			if tokens[0].Literal != tt.text {
+				t.Fatalf("Incorrect literal value for token: Expected: %s. Got: %v", tt.text, tokens[0].Literal)
 			}
 		})
 	}

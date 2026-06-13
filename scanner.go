@@ -93,7 +93,6 @@ func (s *Scanner) Scan() ([]token, error) {
 
 func (s *Scanner) scanNext() {
 	currentChar := s.advance()
-
 	switch currentChar {
 	case '#':
 		s.comment()
@@ -104,43 +103,43 @@ func (s *Scanner) scanNext() {
 			s.basicString()
 		}
 	case '=':
-		s.addToken("=", "=", EQUAL)
+		s.addToken(EQUAL, "=")
 	case '\n':
-		s.addToken("\n", "\n", NEW_LINE)
+		s.addToken(NEW_LINE, "=")
 		s.column = 0
 		s.line++
 	case '.':
-		s.addToken(".", ".", DOT)
+		s.addToken(DOT, ".")
 	case '[':
-		s.addToken("[", "[", LEFT_BRACKET)
+		s.addToken(LEFT_BRACKET, "[")
 	case ']':
-		s.addToken("]", "]", RIGHT_BRACKET)
+		s.addToken(RIGHT_BRACKET, "]")
 	case 'i':
 		if s.matchSequence("nf") {
-			s.addToken("inf", math.Inf(1), INF)
+			s.addToken(INF, math.Inf(1))
 		}
 		s.key()
 	case 'n':
 		if s.matchSequence("an") {
-			s.addToken("nan", math.NaN(), NAN)
+			s.addToken(NAN, math.NaN())
 		}
 		s.key()
 	case 't':
 		if s.matchSequence("rue") {
-			s.addToken("true", true, TRUE)
+			s.addToken(TRUE, true)
 			return
 		}
 		s.key()
 	case 'f':
 		if s.matchSequence("alse") {
-			s.addToken("false", false, FALSE)
+			s.addToken(FALSE, false)
 			return
 		}
 		s.key()
 	case '+':
-		s.addToken("+", "+", PLUS)
+		s.addToken(PLUS, "+")
 	case '-':
-		s.addToken("-", "-", MINUS)
+		s.addToken(MINUS, "-")
 	case '\t', ' ', '\r':
 		break
 	default:
@@ -204,7 +203,8 @@ func (s *Scanner) peekAt(offset int) byte {
 	return s.source[s.current+offset]
 }
 
-func (s *Scanner) addToken(lexeme string, literal any, tokenType TokenType) {
+func (s *Scanner) addToken(tokenType TokenType, literal any) {
+	lexeme := string(s.source[s.start:s.current])
 	t := token{
 		Line:    s.line,
 		Column:  s.column,
@@ -213,11 +213,6 @@ func (s *Scanner) addToken(lexeme string, literal any, tokenType TokenType) {
 		Type:    tokenType,
 	}
 	s.tokens = append(s.tokens, t)
-}
-
-func (s *Scanner) addTokenValue(t TokenType, literal any) {
-	lexeme := string(s.source[s.start:s.current])
-	s.addToken(lexeme, literal, t)
 }
 
 // Checks to see if the current pointer is off bounds from the
@@ -234,7 +229,7 @@ func (s *Scanner) comment() {
 
 	// make up for finding a newline character
 	s.line++
-	s.addTokenValue(COMMENT, commentValue)
+	s.addToken(COMMENT, commentValue)
 }
 
 func (s *Scanner) number() {
@@ -260,13 +255,13 @@ func (s *Scanner) number() {
 
 	if isFloatingPoint {
 		floatVal, _ := strconv.ParseFloat(cleaned, 64)
-		s.addTokenValue(FLOAT, floatVal)
+		s.addToken(FLOAT, floatVal)
 	} else {
 		intVal, err := strconv.ParseInt(cleaned, 10, 64)
 		if err != nil {
 			log.Printf("err: %v", err)
 		}
-		s.addTokenValue(INTEGER, intVal)
+		s.addToken(INTEGER, intVal)
 	}
 }
 
@@ -276,7 +271,7 @@ func (s *Scanner) key() {
 	}
 
 	lexeme := s.source[s.start:s.current]
-	s.addTokenValue(BARE_KEY, string(lexeme))
+	s.addToken(BARE_KEY, string(lexeme))
 }
 
 func (s *Scanner) multilineBasicString() {
@@ -309,7 +304,7 @@ func (s *Scanner) multilineBasicString() {
 		}
 	}
 
-	s.addTokenValue(MULTILINE_BASIC_STRING, string(strValue))
+	s.addToken(MULTILINE_BASIC_STRING, string(strValue))
 }
 
 func (s *Scanner) AddError(msg string) {
@@ -331,6 +326,7 @@ func (s *Scanner) basicString() {
 
 	if s.isAtEnd() {
 		s.AddError("Unterminated basic string")
+		return
 	}
 
 	s.advance()
@@ -339,7 +335,7 @@ func (s *Scanner) basicString() {
 	// literal = just the content between the quotes
 	strValue := s.source[s.start+1 : s.current-1]
 
-	s.addTokenValue(BASIC_STRING, string(strValue))
+	s.addToken(BASIC_STRING, string(strValue))
 }
 
 func (s *Scanner) isMultlineStart() bool {
