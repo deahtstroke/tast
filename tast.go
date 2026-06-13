@@ -14,6 +14,7 @@ func LoadFile(path string) (*Document, error) {
 	return ParseBytes(f)
 }
 
+// Parses a byte array into a TOML document
 func ParseBytes(src []byte) (*Document, error) {
 	scanner := NewScanner(src)
 	scanner.Scan()
@@ -26,6 +27,7 @@ func ParseBytes(src []byte) (*Document, error) {
 	return doc, nil
 }
 
+// Parses a string into a TOML document
 func ParseString(src string) (*Document, error) {
 	return ParseBytes([]byte(src))
 }
@@ -39,6 +41,7 @@ func ParseFrom(r io.Reader) (*Document, error) {
 	return ParseBytes(src)
 }
 
+// Saves the current document source to a file
 func (d *Document) Save(path string) error {
 	f, err := os.OpenFile(path, os.O_WRONLY, 0o600)
 	if err != nil {

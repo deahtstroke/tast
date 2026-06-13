@@ -22,13 +22,12 @@ type Node interface {
 }
 
 // Top-most node representation of a TOML file
-// in the AST
 type Document struct {
 	content []Node
 }
 
-// Retrieves a root-level key-value node defined by their key
-// Key argument can be defined as a barekey or a dotted-key
+// Retrieves a root-level key-value node defined by passed-in argument
+// Argument can be defined as a barekey or a dotted-key
 func (d *Document) FindKey(key string) (*KeyValueNode, bool) {
 	for _, node := range d.content {
 		kv, ok := node.(*KeyValueNode)
@@ -51,6 +50,7 @@ func (d *Document) Table(key string) (*TableNode, bool) {
 	return nil, false
 }
 
+// Returns a string representation of the document
 func (d *Document) String() (string, error) {
 	p := NewPrinter()
 	return p.print(d)
