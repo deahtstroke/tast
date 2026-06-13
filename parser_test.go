@@ -2,16 +2,17 @@ package tast
 
 import (
 	"fmt"
+	"math"
 	"testing"
 )
 
 func Test_Parser(t *testing.T) {
 	tests := map[string]struct {
-		tokens           []token
-		expectedDocument *Document
-		shouldErr        bool
-		errorCount       int
-		errorCodes       []ParseErrorCode
+		tokens      []token
+		expectedDoc *Document
+		wantErr     bool
+		errCount    int
+		errCodes    []ParseErrorCode
 	}{
 		// Comments
 		"General comments with key-value pairs": {
@@ -20,7 +21,7 @@ func Test_Parser(t *testing.T) {
 				BareKey("key"), Equal(), BasicString("value"), Comment("# This is a comment at the end of a line"), NewLine(),
 				BareKey("another"), Equal(), BasicString("# This is not a comment"), NewLine(),
 			),
-			expectedDocument: &Document{
+			expectedDoc: &Document{
 				content: []Node{
 					&KeyValueNode{
 						leadingTrivia: []Trivia{{lexeme: "# This is a full-line comment"}},
@@ -43,16 +44,24 @@ func Test_Parser(t *testing.T) {
 				},
 			},
 		},
+		"Should report error on missing assignment after key": {
+			tokens: DeclareTokens(
+				BareKey("key"), BasicString("value"),
+			),
+			wantErr:  true,
+			errCount: 1,
+			errCodes: []ParseErrorCode{ErrMissingAssignmentAfterKey},
+		},
 		"Leading comments belong to the respective nodes: Table + KVs": {
 			tokens: DeclareTokens(
 				Comment("# Trivia 1"), NewLine(),
 				LeftBracket(), BareKey("key1"), RightBracket(), NewLine(),
 				Comment("# Trivia 2"), NewLine(),
-				BareKey("key2"), Equal(), BasicString("value"), NewLine(),
+				BareKey("key2"), Equal(), Inf(1), NewLine(),
 				Comment("# Trivia 3"), NewLine(),
-				BareKey("key3"), Equal(), BasicString("value"), NewLine(),
+				BareKey("key3"), Equal(), Float(3.14), NewLine(),
 			),
-			expectedDocument: &Document{
+			expectedDoc: &Document{
 				content: []Node{
 					&TableNode{
 						leadingTrivia: []Trivia{{lexeme: "# Trivia 1"}},
@@ -65,8 +74,8 @@ func Test_Parser(t *testing.T) {
 								key: &KeyNode{
 									segments: []string{"key2"},
 								},
-								value: &StringNode{
-									value: "value",
+								value: &FloatNode{
+									value: math.Inf(1),
 								},
 							},
 							&KeyValueNode{
@@ -74,8 +83,8 @@ func Test_Parser(t *testing.T) {
 								key: &KeyNode{
 									segments: []string{"key3"},
 								},
-								value: &StringNode{
-									value: "value",
+								value: &FloatNode{
+									value: 3.14,
 								},
 							},
 						},
@@ -89,7 +98,7 @@ func Test_Parser(t *testing.T) {
 				Comment("# This is another comment"),
 				LeftBracket(), BareKey("key"), RightBracket(), Comment("# This is in the same line as the table"),
 			),
-			expectedDocument: &Document{
+			expectedDoc: &Document{
 				content: []Node{
 					&TableNode{
 						leadingTrivia: []Trivia{{lexeme: "# This is a comment"}, {lexeme: "# This is another comment"}},
@@ -108,7 +117,7 @@ func Test_Parser(t *testing.T) {
 				Comment("# Comment 2"), NewLine(),
 				LeftBracket(), BareKey("key2"), RightBracket(), NewLine(),
 			),
-			expectedDocument: &Document{
+			expectedDoc: &Document{
 				content: []Node{
 					&TableNode{
 						leadingTrivia: []Trivia{{lexeme: "# Comment 1"}},
@@ -131,7 +140,7 @@ func Test_Parser(t *testing.T) {
 				LeftBracket(), BareKey("key"), RightBracket(), NewLine(),
 				Comment("# Comment 2"), NewLine(),
 			),
-			expectedDocument: &Document{
+			expectedDoc: &Document{
 				content: []Node{
 					&TableNode{
 						leadingTrivia:  []Trivia{{lexeme: "# Comment 1"}},
@@ -148,7 +157,7 @@ func Test_Parser(t *testing.T) {
 			tokens: DeclareTokens(
 				BareKey("key"), Equal(), BasicString("value"),
 			),
-			expectedDocument: &Document{
+			expectedDoc: &Document{
 				content: []Node{
 					&KeyValueNode{
 						key: &KeyNode{
@@ -165,9 +174,9 @@ func Test_Parser(t *testing.T) {
 			tokens: DeclareTokens(
 				BareKey("key"), Equal(),
 			),
-			shouldErr:  true,
-			errorCount: 1,
-			errorCodes: []ParseErrorCode{ErrUnspecifiedValueForKey},
+			wantErr:  true,
+			errCount: 1,
+			errCodes: []ParseErrorCode{ErrUnspecifiedValueForKey},
 		},
 		// Keys
 		"BareKeys": {
@@ -177,7 +186,7 @@ func Test_Parser(t *testing.T) {
 				BareKey("bare-key"), Equal(), BasicString("value"),
 				BareKey("1234"), Equal(), BasicString("value"),
 			),
-			expectedDocument: &Document{
+			expectedDoc: &Document{
 				content: []Node{
 					&KeyValueNode{
 						key: &KeyNode{
@@ -221,7 +230,7 @@ func Test_Parser(t *testing.T) {
 				LiteralString("key2"), Equal(), BasicString("value"),
 				LiteralString("ʎǝʞ"), Equal(), BasicString("value"),
 				LiteralString("quoted \"value\""), Equal(), BasicString("value")),
-			expectedDocument: &Document{
+			expectedDoc: &Document{
 				content: []Node{
 					&KeyValueNode{
 						key: &KeyNode{
@@ -273,7 +282,7 @@ func Test_Parser(t *testing.T) {
 				BareKey("physical"), Dot(), BasicString("shape"), Equal(), BasicString("round"),
 				BareKey("site"), Dot(), BasicString("google.com"), Equal(), True(),
 			),
-			expectedDocument: &Document{
+			expectedDoc: &Document{
 				content: []Node{
 					&KeyValueNode{
 						key: &KeyNode{
@@ -315,22 +324,22 @@ func Test_Parser(t *testing.T) {
 				BareKey("name"), Equal(), BasicString("Tom"),
 				BareKey("name"), Equal(), BasicString("Pradyun"),
 			),
-			shouldErr:  true,
-			errorCount: 1,
-			errorCodes: []ParseErrorCode{ErrDuplicateKey},
+			wantErr:  true,
+			errCount: 1,
+			errCodes: []ParseErrorCode{ErrDuplicateKey},
 		},
 		"Barekeys and quotted keys are equivalent on duplicate check": {
 			tokens: DeclareTokens(
 				BareKey("spelling"), Equal(), BasicString("favorite"),
 				BasicString("spelling"), Equal(), BasicString("favourite"),
 			),
-			shouldErr:  true,
-			errorCount: 1,
-			errorCodes: []ParseErrorCode{ErrDuplicateKey},
+			wantErr:  true,
+			errCount: 1,
+			errCodes: []ParseErrorCode{ErrDuplicateKey},
 		},
 		"Valid but discouraged key": {
 			tokens: DeclareTokens(BareKey("3"), Dot(), BareKey("14159"), Equal(), BasicString("pi")),
-			expectedDocument: &Document{
+			expectedDoc: &Document{
 				content: []Node{
 					&KeyValueNode{
 						key: &KeyNode{
@@ -348,9 +357,9 @@ func Test_Parser(t *testing.T) {
 				LeftBracket(), BareKey("key"), RightBracket(), NewLine(),
 				LeftBracket(), BareKey("key"), RightBracket(),
 			),
-			shouldErr:  true,
-			errorCount: 1,
-			errorCodes: []ParseErrorCode{ErrDuplicateTable},
+			wantErr:  true,
+			errCount: 1,
+			errCodes: []ParseErrorCode{ErrDuplicateTable},
 		},
 		"Table with duplicate KVs should error": {
 			tokens: DeclareTokens(
@@ -358,9 +367,9 @@ func Test_Parser(t *testing.T) {
 				BareKey("hello"), Equal(), BasicString("world"), NewLine(),
 				BasicString("hello"), Equal(), BasicString("world?"),
 			),
-			shouldErr:  true,
-			errorCount: 1,
-			errorCodes: []ParseErrorCode{ErrDuplicateKey},
+			wantErr:  true,
+			errCount: 1,
+			errCodes: []ParseErrorCode{ErrDuplicateKey},
 		},
 		"Table with duplicate dotted KVs should error": {
 			tokens: DeclareTokens(
@@ -368,9 +377,9 @@ func Test_Parser(t *testing.T) {
 				BareKey("foo"), Dot(), BareKey("bar"), Equal(), BasicString("world"), NewLine(),
 				BasicString("foo"), Dot(), BasicString("bar"), Equal(), BasicString("world??"),
 			),
-			shouldErr:  true,
-			errorCount: 1,
-			errorCodes: []ParseErrorCode{ErrDuplicateKey},
+			wantErr:  true,
+			errCount: 1,
+			errCodes: []ParseErrorCode{ErrDuplicateKey},
 		},
 	}
 
@@ -378,16 +387,16 @@ func Test_Parser(t *testing.T) {
 		t.Run(test, func(t *testing.T) {
 			parser := NewParser(expected.tokens)
 			got, errs := parser.parse()
-			if expected.shouldErr {
+			if expected.wantErr {
 				if len(errs) <= 0 {
 					t.Fatalf("expecting errors, found none")
 				}
 
-				if len(errs) != expected.errorCount {
-					t.Fatalf("expecting %d errors, found %d: %v", expected.errorCount, len(errs), errs)
+				if len(errs) != expected.errCount {
+					t.Fatalf("expecting %d errors, found %d: %v", expected.errCount, len(errs), errs)
 				}
 
-				for _, code := range expected.errorCodes {
+				for _, code := range expected.errCodes {
 					if !containsErrorCode(errs, code) {
 						t.Fatalf("expected error code %v but was not found in %v", code, errs)
 					}
@@ -399,7 +408,7 @@ func Test_Parser(t *testing.T) {
 				t.Fatalf("incorrect parse tree: %+v", parser.errors)
 			}
 
-			assertDocument(t, expected.expectedDocument, got)
+			assertDocument(t, expected.expectedDoc, got)
 		})
 	}
 }
@@ -739,11 +748,15 @@ func True() TokenOpt {
 	}
 }
 
-func Inf() TokenOpt {
+func Inf(op int) TokenOpt {
 	return func() token {
+		var literal string = "inf"
+		if op < 0 {
+			literal = "-inf"
+		}
 		return token{
 			Type:    INF,
-			Literal: string("inf"),
+			Literal: literal,
 			Lexeme:  "inf",
 		}
 	}

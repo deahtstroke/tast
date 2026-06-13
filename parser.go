@@ -239,13 +239,15 @@ func createBoolNode(p *Parser, b TokenType) Node {
 }
 
 func createInfinityNode(p *Parser, operator TokenType) Node {
-	val := math.MaxInt64
+	val := math.Inf(1)
 	if operator == MINUS {
-		val = -val
+		val = math.Inf(-1)
 	}
 
-	return &IntegerNode{
-		value: int64(val),
+	// According to IEEE 754, inf should be treated as float64
+	// aka, a FloatNode in tast-speak
+	return &FloatNode{
+		value: val,
 		token: p.previous(),
 	}
 }
