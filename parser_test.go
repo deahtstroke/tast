@@ -24,8 +24,8 @@ func Test_Parser(t *testing.T) {
 			expectedDoc: &Document{
 				content: []Node{
 					&KeyValueNode{
-						leadingTrivia: []Trivia{{lexeme: "# This is a full-line comment"}},
-						lineTrivia:    &Trivia{lexeme: "# This is a comment at the end of a line"},
+						leadingTrivia: []Trivia{{lexeme: "# This is a full-line comment", Type: CommentTrivia}, {lexeme: "\n", Type: NewLineTrivia}},
+						lineTrivia:    []Trivia{{lexeme: "# This is a comment at the end of a line", Type: CommentTrivia}, {lexeme: "\n", Type: NewLineTrivia}},
 						key: &KeyNode{
 							segments: []string{"key"},
 						},
@@ -102,7 +102,7 @@ func Test_Parser(t *testing.T) {
 				content: []Node{
 					&TableNode{
 						leadingTrivia: []Trivia{{lexeme: "# This is a comment"}, {lexeme: "# This is another comment"}},
-						lineTrivia:    &Trivia{"# This is in the same line as the table"},
+						lineTrivia:    &Trivia{lexeme: "# This is in the same line as the table"},
 						key: &KeyNode{
 							segments: []string{"key"},
 						},
@@ -456,17 +456,9 @@ func assertNode(t *testing.T, expected, got Node) {
 			assertNode(t, e.children[i], g.children[i])
 		}
 
-		assertComments(t, e.leadingTrivia, g.leadingTrivia, "leading")
-		if e.lineTrivia != nil {
-			if g.lineTrivia.lexeme == "" {
-				t.Fatalf("expected trailing comment %q, got \"\"", e.lineTrivia.lexeme)
-			}
-
-			if e.lineTrivia.lexeme != g.lineTrivia.lexeme {
-				t.Errorf("trailing comment: expected %q, got %q", e.lineTrivia.lexeme, g.lineTrivia.lexeme)
-			}
-		}
-		assertComments(t, e.trailingTrivia, g.trailingTrivia, "trailing")
+		assertTrivia(t, e.leadingTrivia, g.leadingTrivia, "leading")
+		assertTrivia(t, e.lineTrivia, g.lineTrivia, "inline")
+		assertTrivia(t, e.trailingTrivia, g.trailingTrivia, "trailing")
 	case *KeyValueNode:
 		g, ok := got.(*KeyValueNode)
 		if !ok {
@@ -474,16 +466,10 @@ func assertNode(t *testing.T, expected, got Node) {
 		}
 		assertKeyNode(t, e.key, g.key)
 		assertNode(t, e.value, g.value)
-		assertComments(t, e.leadingTrivia, g.leadingTrivia, "leading")
-		if e.lineTrivia != nil {
-			if g.lineTrivia == nil {
-				t.Fatal("expected trailing comment, got nil")
-			}
 
-			if e.lineTrivia.lexeme != g.lineTrivia.lexeme {
-				t.Errorf("trailing comment: expected %q, got %q", e.lineTrivia.lexeme, g.lineTrivia.lexeme)
-			}
-		}
+		assertTrivia(t, e.leadingTrivia, g.leadingTrivia, "leading")
+		assertTrivia(t, e.lineTrivia, g.lineTrivia, "inline")
+		assertTrivia(t, e.trailingTrivia, g.trailingTrivia, "trailing")
 	case *StringNode:
 		g, ok := got.(*StringNode)
 		if !ok {
@@ -539,7 +525,7 @@ func assertKeyNode(t *testing.T, expected, got *KeyNode) {
 	}
 }
 
-func assertComments(t *testing.T, expected, got []Trivia, label string) {
+func assertTrivia(t *testing.T, expected, got []Trivia, label string) {
 	t.Helper()
 
 	if expected == nil {
@@ -547,12 +533,16 @@ func assertComments(t *testing.T, expected, got []Trivia, label string) {
 	}
 
 	if len(expected) != len(got) {
-		t.Fatalf("%s: expected %d comments, got %d", label, len(expected), len(got))
+		t.Fatalf("%s: expected %d trivia, got %d", label, len(expected), len(got))
 	}
 
 	for i := range len(expected) {
 		if expected[i].lexeme != got[i].lexeme {
-			t.Fatalf("%s comment %d: expected %q, got %q", label, i, expected[i], got[i])
+			t.Fatalf("%s trivia lexeme %d: expected %s, got %s", label, i, expected[i].lexeme, got[i].lexeme)
+		}
+
+		if expected[i].Type != got[i].Type {
+			t.Fatalf("%s trivia type %d: expected %s, got %s", label, i, TriviaTypes[expected[i].Type], TriviaTypes[got[i].Type])
 		}
 	}
 }

@@ -56,10 +56,25 @@ func (d *Document) String() (string, error) {
 	return p.print(d)
 }
 
+type TriviaType int
+
+const (
+	NewLineTrivia TriviaType = iota
+	TabTrivia
+	CommentTrivia
+)
+
+var TriviaTypes map[TriviaType]string = map[TriviaType]string{
+	NewLineTrivia: "NewLineTrivia",
+	TabTrivia:     "TabTrivia",
+	CommentTrivia: "CommentTrivia",
+}
+
 // Trivia really is just comments that start with '#'
 // the only worthwhile state saving for trivia is the
 // raw literal string in the comment
 type Trivia struct {
+	Type   TriviaType
 	lexeme string
 }
 
@@ -77,7 +92,7 @@ type TableNode struct {
 	leadingTrivia []Trivia
 
 	// Comment in the same line as the table
-	lineTrivia *Trivia
+	lineTrivia []Trivia
 
 	// Any comments that are leftover after the table
 	// itself
@@ -203,7 +218,7 @@ type KeyValueNode struct {
 	leadingTrivia []Trivia
 
 	// Comment at the end of the line in a key-value node
-	lineTrivia *Trivia
+	lineTrivia []Trivia
 
 	// Any comments at the end of a key-value node
 	// Note: This field only gets filled if the only tokens leftover

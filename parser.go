@@ -114,15 +114,17 @@ func (p *Parser) getLeadingTrivia() []Trivia {
 		p.pendingTrivia = nil
 		return trivia
 	}
+
 	for !p.isAtEnd() {
 		if p.check(NEW_LINE) {
-			p.advance()
+			newLine := p.advance()
+			trivia = append(trivia, Trivia{lexeme: newLine.Lexeme, Type: NewLineTrivia})
 			continue
 		}
 
 		if p.check(COMMENT) {
 			comment := p.advance()
-			trivia = append(trivia, Trivia{lexeme: comment.Lexeme})
+			trivia = append(trivia, Trivia{lexeme: comment.Lexeme, Type: CommentTrivia})
 			continue
 		}
 
@@ -175,10 +177,8 @@ func (p *Parser) KeyValue() *KeyValueNode {
 	}
 	keyValueNode.value = value
 
-	if p.check(COMMENT) {
-		comment := p.advance()
-		keyValueNode.lineTrivia = &Trivia{lexeme: comment.Lexeme}
-	}
+	lineTrivia := p.getLineTrivia()
+	keyValueNode.lineTrivia = lineTrivia
 
 	return keyValueNode
 }
@@ -310,11 +310,10 @@ func (p *Parser) Table() *TableNode {
 		return nil
 	}
 
-	// Trailing comment
-	if p.check(COMMENT) {
-		comment := p.advance()
-		tableNode.lineTrivia = &Trivia{lexeme: comment.Lexeme}
-	}
+	// Check for in-line trivia
+	// Break out of loop once we find newline
+	lineTrivia := p.getLineTrivia()
+	tableNode.lineTrivia = lineTrivia
 
 	outer := p.keys
 	p.keys = make(map[string]struct{})
@@ -357,6 +356,24 @@ func (p *Parser) Table() *TableNode {
 
 	tableNode.children = children
 	return tableNode
+}
+
+func (p *Parser) getLineTrivia() []Trivia {
+	var lineTrivia []Trivia
+	for !p.isAtEnd() {
+		if p.check(COMMENT) {
+			comment := p.advance()
+			lineTrivia = append(lineTrivia, Trivia{lexeme: comment.Lexeme, Type: CommentTrivia})
+			continue
+		}
+
+		if p.check(NEW_LINE) {
+			newLine := p.advance()
+			lineTrivia = append(lineTrivia, Trivia{lexeme: newLine.Lexeme, Type: NewLineTrivia})
+			break
+		}
+	}
+	return lineTrivia
 }
 
 // Parse a TOML key which follows the grammar rule:

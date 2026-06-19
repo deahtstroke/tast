@@ -78,6 +78,22 @@ func Test_DeleteExistingKeyInTable(t *testing.T) {
 	assert.Equal(t, ok, false)
 }
 
+func Test_Protheon_ReplaceTable(t *testing.T) {
+	src, err := os.ReadFile("testdata/parse/protheon.toml")
+	assert.NilError(t, err, "error reading from file parse/protheon.toml")
+
+	doc, err := tast.ParseBytes(src)
+	assert.NilError(t, err, "not expecting error, got: %v", err)
+
+	table := requireTable(t, doc, "datasource")
+	kv := requireTableKeyValue(t, table, "table")
+
+	assert.NilError(t, kv.Set("rivenbot"))
+
+	err = doc.Save("testdata/parse/protheon-out.toml")
+	assert.NilError(t, err)
+}
+
 func Test_RoundTrip(t *testing.T) {
 	src, err := os.ReadFile("testdata/roundtrip/test.toml")
 	assert.NilError(t, err, "error reading from roundtrip/test.toml")

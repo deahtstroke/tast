@@ -105,7 +105,7 @@ func (s *Scanner) scanNext() {
 	case '=':
 		s.addToken(EQUAL, "=")
 	case '\n':
-		s.addToken(NEW_LINE, "=")
+		s.addToken(NEW_LINE, "\n")
 		s.column = 0
 		s.line++
 	case '.':

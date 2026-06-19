@@ -43,16 +43,10 @@ func ParseFrom(r io.Reader) (*Document, error) {
 
 // Saves the current document source to a file
 func (d *Document) Save(path string) error {
-	f, err := os.OpenFile(path, os.O_WRONLY, 0o600)
-	if err != nil {
-		return err
-	}
-
 	s, err := NewPrinter().print(d)
 	if err != nil {
 		return err
 	}
 
-	_, err = io.WriteString(f, s)
-	return err
+	return os.WriteFile(path, []byte(s), 0o644)
 }

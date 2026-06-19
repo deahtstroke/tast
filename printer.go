@@ -42,13 +42,15 @@ func (p *Printer) VisitTableNode(n *TableNode) error {
 	n.key.Accept(p)
 	p.buf.WriteString("]")
 
-	if n.lineTrivia != nil {
-		p.buf.WriteString(" ")
-		p.buf.WriteString(n.lineTrivia.lexeme)
+	for _, trivia := range n.leadingTrivia {
+		p.buf.WriteString(trivia.lexeme)
 	}
 
+	p.buf.WriteString("\n")
 	for _, c := range n.children {
-		p.VisitKeyValueNode(c.(*KeyValueNode))
+		if err := c.Accept(p); err != nil {
+			return err
+		}
 	}
 
 	p.buf.WriteString("\n")
@@ -59,7 +61,6 @@ func (p *Printer) VisitTableNode(n *TableNode) error {
 func (p *Printer) VisitKeyValueNode(n *KeyValueNode) error {
 	for _, trivia := range n.leadingTrivia {
 		p.buf.WriteString(trivia.lexeme)
-		p.buf.WriteString("\n")
 	}
 
 	if err := n.key.Accept(p); err != nil {
@@ -72,15 +73,12 @@ func (p *Printer) VisitKeyValueNode(n *KeyValueNode) error {
 		return err
 	}
 
-	if n.lineTrivia != nil {
-		p.buf.WriteString(n.lineTrivia.lexeme)
+	for _, trivia := range n.lineTrivia {
+		p.buf.WriteString(trivia.lexeme)
 	}
-
-	p.buf.WriteString("\n")
 
 	for _, trivia := range n.trailingTrivia {
 		p.buf.WriteString(trivia.lexeme)
-		p.buf.WriteString("\n")
 	}
 	return nil
 }
