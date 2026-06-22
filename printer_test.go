@@ -11,7 +11,7 @@ func Test_PrinterSuccess(t *testing.T) {
 		makeKV([]string{"output.errors"}, makeVal("stderr")),
 		makeKV([]string{"output.\"logs\""}, makeVal("stdout")),
 		makeTable(makeKey("database", "rivenbot"),
-			withLeading([]string{"# Database details for Rivenbot", "# Dev only"})),
+			withLeading("# Database details for Rivenbot", "# Dev only")),
 		makeKV([]string{"url"}, makeVal("postgres://localhost:5432/rivenbot")),
 		makeKV([]string{"username"}, makeVal("daniel")),
 	)
@@ -56,26 +56,26 @@ func makeTable(keyNode *KeyNode, opts ...TableOption) *TableNode {
 	return table
 }
 
-func withLeading(comments []string) TableOption {
+func withLeading(comments ...string) TableOption {
 	return func(tn *TableNode) {
 		for _, c := range comments {
-			tn.leadingTrivia = append(tn.leadingTrivia, *makeTrivia(c))
+			tn.leadingTrivia = append(tn.leadingTrivia, makeTrivia(c))
 		}
 	}
 }
 
-func withTrailing(comment string) TableOption {
+func withTrailing(comments ...string) TableOption {
 	return func(tn *TableNode) {
-		tn.lineTrivia = makeTrivia(comment)
+		var lineTrivia []Trivia
+		for _, c := range comments {
+			lineTrivia = append(lineTrivia, makeTrivia(c))
+		}
+		tn.lineTrivia = lineTrivia
 	}
 }
 
-func makeTrivia(lex string) *Trivia {
-	if lex == "" {
-		return nil
-	}
-
-	return &Trivia{
+func makeTrivia(lex string) Trivia {
+	return Trivia{
 		lexeme: lex,
 	}
 }

@@ -6,7 +6,6 @@ import (
 
 	"github.com/deahtstroke/tast"
 	"gotest.tools/v3/assert"
-	"gotest.tools/v3/assert/cmp"
 )
 
 func Test_ParseKeyValue(t *testing.T) {
@@ -79,6 +78,7 @@ func Test_DeleteExistingKeyInTable(t *testing.T) {
 }
 
 func Test_Protheon_ReplaceTable(t *testing.T) {
+	expected := "rivenbot"
 	src, err := os.ReadFile("testdata/parse/protheon.toml")
 	assert.NilError(t, err, "error reading from file parse/protheon.toml")
 
@@ -88,27 +88,28 @@ func Test_Protheon_ReplaceTable(t *testing.T) {
 	table := requireTable(t, doc, "datasource")
 	kv := requireTableKeyValue(t, table, "table")
 
-	assert.NilError(t, kv.Set("rivenbot"))
+	assert.NilError(t, kv.Set(expected))
 
-	err = doc.Save("testdata/parse/protheon-out.toml")
-	assert.NilError(t, err)
+	table = requireTable(t, doc, "datasource")
+
+	kv = requireTableKeyValue(t, table, "table")
+	got, ok := kv.String()
+
+	assert.Check(t, ok)
+	assert.Equal(t, got, expected, "expecting %s, got %s", expected, got)
 }
 
 func Test_RoundTrip(t *testing.T) {
-	src, err := os.ReadFile("testdata/roundtrip/test.toml")
-	assert.NilError(t, err, "error reading from roundtrip/test.toml")
+	filePath := "./testdata/roundtrip/protheon_config.toml"
+	src, err := os.ReadFile(filePath)
+	assert.NilError(t, err, "error reading from %s", filePath)
 
 	doc, err := tast.ParseBytes(src)
 	assert.NilError(t, err, "not expecting error, got: %v", err)
 
 	s, err := doc.String()
 	assert.NilError(t, err, "not expecting error, got: %v", err)
-
-	assert.Assert(t, cmp.Contains(s, "# Database details"))
-	assert.Assert(t, cmp.Contains(s, "port = 5432"))
-	assert.Assert(t, cmp.Contains(s, "host = \"localhost\""))
-	assert.Assert(t, cmp.Contains(s, "username = \"root\""))
-	assert.Assert(t, cmp.Contains(s, "password = \"root\""))
+	assert.Equal(t, string(src), s)
 }
 
 func requireKeyValue(t *testing.T, doc *tast.Document, name string) *tast.KeyValueNode {

@@ -102,7 +102,7 @@ func Test_Parser(t *testing.T) {
 				content: []Node{
 					&TableNode{
 						leadingTrivia: []Trivia{{lexeme: "# This is a comment"}, {lexeme: "# This is another comment"}},
-						lineTrivia:    &Trivia{lexeme: "# This is in the same line as the table"},
+						lineTrivia:    []Trivia{{lexeme: "# This is in the same line as the table"}},
 						key: &KeyNode{
 							segments: []string{"key"},
 						},

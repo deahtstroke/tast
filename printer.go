@@ -35,25 +35,25 @@ func (p *Printer) print(doc *Document) (string, error) {
 func (p *Printer) VisitTableNode(n *TableNode) error {
 	for _, comment := range n.leadingTrivia {
 		p.buf.WriteString(comment.lexeme)
-		p.buf.WriteString("\n")
 	}
 
 	p.buf.WriteString("[")
 	n.key.Accept(p)
 	p.buf.WriteString("]")
 
-	for _, trivia := range n.leadingTrivia {
+	for _, trivia := range n.lineTrivia {
 		p.buf.WriteString(trivia.lexeme)
 	}
 
-	p.buf.WriteString("\n")
 	for _, c := range n.children {
 		if err := c.Accept(p); err != nil {
 			return err
 		}
 	}
 
-	p.buf.WriteString("\n")
+	for _, trivia := range n.trailingTrivia {
+		p.buf.WriteString(trivia.lexeme)
+	}
 
 	return nil
 }

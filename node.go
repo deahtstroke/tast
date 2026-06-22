@@ -2,6 +2,7 @@ package tast
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -17,8 +18,11 @@ type Visitor interface {
 	VisitBooleanNode(*BooleanNode) error
 }
 
+// The Node interface represents all the shared methods between all different
+// types of Nodes specified in the TOML spec
 type Node interface {
 	Accept(Visitor) error
+	GetToken() token
 }
 
 // Top-most node representation of a TOML file
@@ -26,8 +30,9 @@ type Document struct {
 	content []Node
 }
 
-// Retrieves a root-level key-value node defined by passed-in argument
-// Argument can be defined as a barekey or a dotted-key
+// FindKey() retrieves a key-value node defined by the 'key' parameter
+// The 'key' parameter can be defined as a bare key or a dotted-key
+// in accordance to the TOML spec
 func (d *Document) FindKey(key string) (*KeyValueNode, bool) {
 	for _, node := range d.content {
 		kv, ok := node.(*KeyValueNode)
@@ -38,8 +43,9 @@ func (d *Document) FindKey(key string) (*KeyValueNode, bool) {
 	return nil, false
 }
 
-// Retrives a Table defined by their key
-// Key argument can be defined as a barekey or a dotted-key
+// Table() attempts to retrive a Table defined by the key parameter
+// The 'key' parameter can be defined as a bare key or a dotted-key
+// in accordance to the TOML spec
 func (d *Document) Table(key string) (*TableNode, bool) {
 	for _, node := range d.content {
 		t, ok := node.(*TableNode)
@@ -106,10 +112,20 @@ func (n *TableNode) Accept(v Visitor) error {
 	return v.VisitTableNode(n)
 }
 
+func (n *TableNode) GetToken() token {
+	return n.tokens[0]
+}
+
+// Key() return the string representation of a TOML key
+// TOML keys according to the spec., can be bare-keys, basic strings,
+// or a combination of both
 func (n *TableNode) Key() string {
 	return n.key.Key()
 }
 
+// Set() mutates a given key given by the parameter 'key' with the
+// passed in value 'value'. An error is returned if the key was not
+// found or if the passed in type is not recognized
 func (n *TableNode) Set(key string, value any) error {
 	i := n.findNodeIndex(key)
 	if i == -1 {
@@ -128,20 +144,54 @@ func (n *TableNode) Set(key string, value any) error {
 	case int64:
 		kv.value = &IntegerNode{
 			value: v,
+			token: token{
+				Type:    INTEGER,
+				Lexeme:  strconv.FormatInt(v, 10),
+				Literal: v,
+				Line:    kv.value.GetToken().Line,
+				Column:  kv.value.GetToken().Column,
+			},
 		}
 	case string:
 		kv.value = &StringNode{
 			value: v,
+			token: token{
+				Type:    BASIC_STRING,
+				Lexeme:  `"` + v + `"`,
+				Literal: v,
+				Line:    kv.value.GetToken().Line,
+				Column:  kv.value.GetToken().Column,
+			},
 		}
 	case float32:
-		return n.Set(key, float64(v))
+		return kv.Set(float64(v))
 	case float64:
 		kv.value = &FloatNode{
 			value: v,
+			token: token{
+				Type:    FLOAT,
+				Lexeme:  strconv.FormatFloat(v, 'f', -1, 64),
+				Literal: v,
+				Line:    kv.value.GetToken().Line,
+				Column:  kv.value.GetToken().Column,
+			},
 		}
 	case bool:
+		lexeme := "false"
+		nodeType := FALSE
+		if v {
+			nodeType = TRUE
+			lexeme = "true"
+		}
 		kv.value = &BooleanNode{
 			value: v,
+			token: token{
+				Type:    nodeType,
+				Lexeme:  lexeme,
+				Literal: v,
+				Line:    kv.value.GetToken().Line,
+				Column:  kv.value.GetToken().Column,
+			},
 		}
 	default:
 		return fmt.Errorf("tast: unsupported value type %T", value)
@@ -150,6 +200,9 @@ func (n *TableNode) Set(key string, value any) error {
 	return nil
 }
 
+// Delete() eliminates a key alongside its value in a TOML table.
+// If the key was found and removed successfully it returns true.
+// Otherwise it returns false
 func (n *TableNode) Delete(key string) bool {
 	i := n.findNodeIndex(key)
 	if i == -1 {
@@ -160,6 +213,9 @@ func (n *TableNode) Delete(key string) bool {
 	return true
 }
 
+// FindKey() attempts to find a given key-value pair inside a TOML table.
+// If the key is found successfully, then it returns the node alongside true.
+// Otherwise it returns false
 func (n *TableNode) FindKey(key string) (*KeyValueNode, bool) {
 	i := n.findNodeIndex(key)
 	if i == -1 {
@@ -226,6 +282,14 @@ type KeyValueNode struct {
 	trailingTrivia []Trivia
 }
 
+func (kv *KeyValueNode) Accept(v Visitor) error {
+	return v.VisitKeyValueNode(kv)
+}
+
+func (kv *KeyValueNode) GetToken() token {
+	return kv.tokens[0]
+}
+
 func (kv *KeyValueNode) Int() (int64, bool) {
 	i, ok := kv.value.(*IntegerNode)
 	if !ok {
@@ -273,30 +337,60 @@ func (kv *KeyValueNode) Set(value any) error {
 	case int64:
 		kv.value = &IntegerNode{
 			value: v,
+			token: token{
+				Type:    INTEGER,
+				Lexeme:  strconv.FormatInt(v, 10),
+				Literal: v,
+				Line:    kv.value.GetToken().Line,
+				Column:  kv.value.GetToken().Column,
+			},
 		}
 	case string:
 		kv.value = &StringNode{
 			value: v,
+			token: token{
+				Type:    BASIC_STRING,
+				Lexeme:  `"` + v + `"`,
+				Literal: v,
+				Line:    kv.value.GetToken().Line,
+				Column:  kv.value.GetToken().Column,
+			},
 		}
 	case float32:
 		return kv.Set(float64(v))
 	case float64:
 		kv.value = &FloatNode{
 			value: v,
+			token: token{
+				Type:    FLOAT,
+				Lexeme:  strconv.FormatFloat(v, 'f', -1, 64),
+				Literal: v,
+				Line:    kv.value.GetToken().Line,
+				Column:  kv.value.GetToken().Column,
+			},
 		}
 	case bool:
+		lexeme := "false"
+		nodeType := FALSE
+		if v {
+			nodeType = TRUE
+			lexeme = "true"
+		}
 		kv.value = &BooleanNode{
 			value: v,
+			token: token{
+				Type:    nodeType,
+				Lexeme:  lexeme,
+				Literal: v,
+				Line:    kv.value.GetToken().Line,
+				Column:  kv.value.GetToken().Column,
+			},
 		}
 	default:
 		return fmt.Errorf("tast: unsupported value type %T", value)
 	}
 
 	return nil
-}
-
-func (kv *KeyValueNode) Accept(v Visitor) error {
-	return v.VisitKeyValueNode(kv)
 }
 
 type StringNode struct {
@@ -308,6 +402,10 @@ func (n *StringNode) Accept(v Visitor) error {
 	return v.VisitStringNode(n)
 }
 
+func (n *StringNode) GetToken() token {
+	return n.token
+}
+
 type IntegerNode struct {
 	value int64
 	token token
@@ -315,6 +413,10 @@ type IntegerNode struct {
 
 func (n *IntegerNode) Accept(v Visitor) error {
 	return v.VisitIntegerNode(n)
+}
+
+func (n *IntegerNode) GetToken() token {
+	return n.token
 }
 
 type FloatNode struct {
@@ -326,6 +428,10 @@ func (n *FloatNode) Accept(v Visitor) error {
 	return v.VisitFloatNode(n)
 }
 
+func (n *FloatNode) GetToken() token {
+	return n.token
+}
+
 type BooleanNode struct {
 	value bool
 	token token
@@ -333,6 +439,10 @@ type BooleanNode struct {
 
 func (n *BooleanNode) Accept(v Visitor) error {
 	return v.VisitBooleanNode(n)
+}
+
+func (n *BooleanNode) GetToken() token {
+	return n.token
 }
 
 func KeysMatch(key string, segments []string) bool {

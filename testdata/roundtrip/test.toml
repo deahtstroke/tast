@@ -1,6 +1,0 @@
-# Database details
-[database]
-port = 5432
-host = "localhost"
-username = "root"
-password = "root"

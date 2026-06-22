@@ -324,12 +324,6 @@ func (p *Parser) Table() *TableNode {
 	var children []Node
 	var pendingTrivia []Trivia
 	for !p.isAtEnd() && !p.check(LEFT_BRACKET) {
-
-		if p.check(NEW_LINE) {
-			p.advance()
-			continue
-		}
-
 		pendingTrivia = p.getLeadingTrivia()
 		if p.isAtEnd() || p.check(LEFT_BRACKET) {
 			break
