@@ -20,7 +20,7 @@ func ParseBytes(src []byte) (*Document, error) {
 	scanner.Scan()
 
 	parser := NewParser(scanner.tokens)
-	doc, errs := parser.parse()
+	doc, errs := parser.Parse()
 	if len(errs) > 0 {
 		return nil, errs[0]
 	}

@@ -18,6 +18,7 @@ const (
 	ErrDuplicateKey
 	ErrDuplicateTable
 	ErrUnspecifiedValueForKey
+	ErrMissingNewLine
 )
 
 type ParseError struct {

@@ -64,13 +64,13 @@ func Test_Parser(t *testing.T) {
 			expectedDoc: &Document{
 				content: []Node{
 					&TableNode{
-						leadingTrivia: []Trivia{{lexeme: "# Trivia 1"}},
+						leadingTrivia: []Trivia{{lexeme: "# Trivia 1", Type: CommentTrivia}, {lexeme: "\n", Type: NewLineTrivia}},
 						key: &KeyNode{
 							segments: []string{"key1"},
 						},
 						children: []Node{
 							&KeyValueNode{
-								leadingTrivia: []Trivia{{lexeme: "# Trivia 2"}},
+								leadingTrivia: []Trivia{{lexeme: "# Trivia 2", Type: CommentTrivia}, {lexeme: "\n", Type: NewLineTrivia}},
 								key: &KeyNode{
 									segments: []string{"key2"},
 								},
@@ -79,7 +79,7 @@ func Test_Parser(t *testing.T) {
 								},
 							},
 							&KeyValueNode{
-								leadingTrivia: []Trivia{{lexeme: "# Trivia 3"}},
+								leadingTrivia: []Trivia{{lexeme: "# Trivia 3", Type: CommentTrivia}, {lexeme: "\n", Type: NewLineTrivia}},
 								key: &KeyNode{
 									segments: []string{"key3"},
 								},
@@ -94,15 +94,21 @@ func Test_Parser(t *testing.T) {
 		},
 		"Accumulated >1 comments before a table": {
 			tokens: DeclareTokens(
-				Comment("# This is a comment"),
-				Comment("# This is another comment"),
+				Comment("# This is a comment"), NewLine(),
+				Comment("# This is another comment"), NewLine(),
 				LeftBracket(), BareKey("key"), RightBracket(), Comment("# This is in the same line as the table"),
 			),
 			expectedDoc: &Document{
 				content: []Node{
 					&TableNode{
-						leadingTrivia: []Trivia{{lexeme: "# This is a comment"}, {lexeme: "# This is another comment"}},
-						lineTrivia:    []Trivia{{lexeme: "# This is in the same line as the table"}},
+						leadingTrivia: []Trivia{
+							{lexeme: "# This is a comment", Type: CommentTrivia},
+							{lexeme: "\n", Type: NewLineTrivia},
+							{lexeme: "# This is another comment", Type: CommentTrivia},
+							{lexeme: "\n", Type: NewLineTrivia}},
+						lineTrivia: []Trivia{
+							{lexeme: "# This is in the same line as the table", Type: CommentTrivia},
+						},
 						key: &KeyNode{
 							segments: []string{"key"},
 						},
@@ -120,13 +126,19 @@ func Test_Parser(t *testing.T) {
 			expectedDoc: &Document{
 				content: []Node{
 					&TableNode{
-						leadingTrivia: []Trivia{{lexeme: "# Comment 1"}},
+						leadingTrivia: []Trivia{
+							{lexeme: "# Comment 1", Type: CommentTrivia},
+							{lexeme: "\n", Type: NewLineTrivia},
+						},
 						key: &KeyNode{
 							segments: []string{"key"},
 						},
 					},
 					&TableNode{
-						leadingTrivia: []Trivia{{lexeme: "# Comment 2"}},
+						leadingTrivia: []Trivia{
+							{lexeme: "# Comment 2", Type: CommentTrivia},
+							{lexeme: "\n", Type: NewLineTrivia},
+						},
 						key: &KeyNode{
 							segments: []string{"key2"},
 						},
@@ -138,13 +150,16 @@ func Test_Parser(t *testing.T) {
 			tokens: DeclareTokens(
 				Comment("# Comment 1"), NewLine(),
 				LeftBracket(), BareKey("key"), RightBracket(), NewLine(),
-				Comment("# Comment 2"), NewLine(),
+				Comment("# Comment 2"),
 			),
 			expectedDoc: &Document{
 				content: []Node{
 					&TableNode{
-						leadingTrivia:  []Trivia{{lexeme: "# Comment 1"}},
-						trailingTrivia: []Trivia{{lexeme: "# Comment 2"}},
+						leadingTrivia: []Trivia{
+							{lexeme: "# Comment 1", Type: CommentTrivia},
+							{lexeme: "\n", Type: NewLineTrivia},
+						},
+						trailingTrivia: []Trivia{{lexeme: "# Comment 2", Type: CommentTrivia}},
 						key: &KeyNode{
 							segments: []string{"key"},
 						},
@@ -181,9 +196,9 @@ func Test_Parser(t *testing.T) {
 		// Keys
 		"BareKeys": {
 			tokens: DeclareTokens(
-				BareKey("key"), Equal(), BasicString("value"),
-				BareKey("bare_key"), Equal(), BasicString("value"),
-				BareKey("bare-key"), Equal(), BasicString("value"),
+				BareKey("key"), Equal(), BasicString("value"), NewLine(),
+				BareKey("bare_key"), Equal(), BasicString("value"), NewLine(),
+				BareKey("bare-key"), Equal(), BasicString("value"), NewLine(),
 				BareKey("1234"), Equal(), BasicString("value"),
 			),
 			expectedDoc: &Document{
@@ -225,10 +240,10 @@ func Test_Parser(t *testing.T) {
 		},
 		"Quoted Keys": {
 			tokens: DeclareTokens(
-				BasicString("127.0.0.1"), Equal(), BasicString("value"),
-				BasicString("character encoding"), Equal(), BasicString("value"),
-				LiteralString("key2"), Equal(), BasicString("value"),
-				LiteralString("ʎǝʞ"), Equal(), BasicString("value"),
+				BasicString("127.0.0.1"), Equal(), BasicString("value"), NewLine(),
+				BasicString("character encoding"), Equal(), BasicString("value"), NewLine(),
+				LiteralString("key2"), Equal(), BasicString("value"), NewLine(),
+				LiteralString("ʎǝʞ"), Equal(), BasicString("value"), NewLine(),
 				LiteralString("quoted \"value\""), Equal(), BasicString("value")),
 			expectedDoc: &Document{
 				content: []Node{
@@ -277,9 +292,9 @@ func Test_Parser(t *testing.T) {
 		},
 		"Dotted-keys": {
 			tokens: DeclareTokens(
-				BareKey("name"), Equal(), BasicString("Orange"),
-				BareKey("physical"), Dot(), BasicString("color"), Equal(), BasicString("orange"),
-				BareKey("physical"), Dot(), BasicString("shape"), Equal(), BasicString("round"),
+				BareKey("name"), Equal(), BasicString("Orange"), NewLine(),
+				BareKey("physical"), Dot(), BasicString("color"), Equal(), BasicString("orange"), NewLine(),
+				BareKey("physical"), Dot(), BasicString("shape"), Equal(), BasicString("round"), NewLine(),
 				BareKey("site"), Dot(), BasicString("google.com"), Equal(), True(),
 			),
 			expectedDoc: &Document{
@@ -321,7 +336,7 @@ func Test_Parser(t *testing.T) {
 		},
 		"Duplicate keys should error": {
 			tokens: DeclareTokens(
-				BareKey("name"), Equal(), BasicString("Tom"),
+				BareKey("name"), Equal(), BasicString("Tom"), NewLine(),
 				BareKey("name"), Equal(), BasicString("Pradyun"),
 			),
 			wantErr:  true,
@@ -330,7 +345,7 @@ func Test_Parser(t *testing.T) {
 		},
 		"Barekeys and quotted keys are equivalent on duplicate check": {
 			tokens: DeclareTokens(
-				BareKey("spelling"), Equal(), BasicString("favorite"),
+				BareKey("spelling"), Equal(), BasicString("favorite"), NewLine(),
 				BasicString("spelling"), Equal(), BasicString("favourite"),
 			),
 			wantErr:  true,
@@ -381,12 +396,48 @@ func Test_Parser(t *testing.T) {
 			errCount: 1,
 			errCodes: []ParseErrorCode{ErrDuplicateKey},
 		},
+		"Missing NewLine after Key-Value should error": {
+			tokens: DeclareTokens(
+				BareKey("key"), Equal(), Integer(123123),
+				BareKey("key"), Equal(), Integer(123123),
+			),
+			wantErr:  true,
+			errCount: 1,
+			errCodes: []ParseErrorCode{ErrMissingNewLine},
+		},
+		"Missing NewLine after Key-Value should error #2": {
+			tokens: DeclareTokens(
+				BareKey("key"), Equal(), Integer(123123), Comment("# This is a comment with no following newline"),
+				BareKey("key"), Equal(), Integer(123123),
+			),
+			wantErr:  true,
+			errCount: 1,
+			errCodes: []ParseErrorCode{ErrMissingNewLine},
+		},
+		"Missing NewLine after table should error": {
+			tokens: DeclareTokens(
+				LeftBracket(), BareKey("key"), RightBracket(),
+				BareKey("foo"), Dot(), BareKey("bar"), Equal(), BasicString("world"), NewLine(),
+			),
+			wantErr:  true,
+			errCount: 1,
+			errCodes: []ParseErrorCode{ErrMissingNewLine},
+		},
+		"Missing NewLine after table should error #2": {
+			tokens: DeclareTokens(
+				LeftBracket(), BareKey("key"), RightBracket(), Comment("# This is a comment with no following newline"),
+				BareKey("foo"), Dot(), BareKey("bar"), Equal(), BasicString("world"), NewLine(),
+			),
+			wantErr:  true,
+			errCount: 1,
+			errCodes: []ParseErrorCode{ErrMissingNewLine},
+		},
 	}
 
 	for test, expected := range tests {
 		t.Run(test, func(t *testing.T) {
 			parser := NewParser(expected.tokens)
-			got, errs := parser.parse()
+			got, errs := parser.Parse()
 			if expected.wantErr {
 				if len(errs) <= 0 {
 					t.Fatalf("expecting errors, found none")

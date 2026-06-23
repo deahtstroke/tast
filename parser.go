@@ -26,6 +26,23 @@ func NewParser(tokens []token) *Parser {
 	}
 }
 
+// Parse() starts the parsing process of iterating the tokens assigned
+// to the parser struct and create a TOML-Document
+// In the case where there are errors while parsing, the accumulated errors
+// will be returned in the slice of ParseErrors
+func (p *Parser) Parse() (*Document, []ParseError) {
+	document := &Document{}
+	for !p.isAtEnd() {
+		node := p.nextNode()
+		if node != nil {
+			document.content = append(document.content, node)
+		}
+	}
+
+	p.handleOrphanedTrivia(document)
+	return document, p.errors
+}
+
 func (p *Parser) registerTable(table *KeyNode) error {
 	tableKey := strings.Join(table.segments, ".")
 	if _, exists := p.tables[tableKey]; exists {
@@ -49,20 +66,6 @@ func (p *Parser) registerKey(key *KeyNode) error {
 	return nil
 }
 
-func (p *Parser) parse() (*Document, []ParseError) {
-	document := &Document{}
-	for !p.isAtEnd() {
-		node := p.nextNode()
-		if node != nil {
-			document.content = append(document.content, node)
-		}
-	}
-
-	p.handleOrphanedTrivia(document)
-
-	return document, p.errors
-}
-
 func (p *Parser) handleOrphanedTrivia(document *Document) {
 	if p.pendingTrivia != nil {
 		lastNode := document.content[len(document.content)-1]
@@ -80,7 +83,7 @@ func (p *Parser) nextNode() Node {
 	// Accumulate all trivia before appending to next node
 	leading := p.getLeadingTrivia()
 	switch {
-	case p.Match(LEFT_BRACKET):
+	case p.MatchAny(LEFT_BRACKET):
 		node := p.Table()
 		if node == nil {
 			p.synchronize()
@@ -89,7 +92,7 @@ func (p *Parser) nextNode() Node {
 
 		node.leadingTrivia = leading
 		return node
-	case p.Match(BARE_KEY, BASIC_STRING, LITERAL_STRING):
+	case p.MatchAny(BARE_KEY, BASIC_STRING, LITERAL_STRING):
 		node := p.KeyValue()
 		if node == nil {
 			p.synchronize()
@@ -165,7 +168,7 @@ func (p *Parser) KeyValue() *KeyValueNode {
 		return nil
 	}
 
-	if !p.Match(EQUAL) {
+	if !p.MatchAny(EQUAL) {
 		p.addError(p.peek(), "expecting assignment operator '=' after key", ErrMissingAssignmentAfterKey)
 		return nil
 	}
@@ -175,23 +178,30 @@ func (p *Parser) KeyValue() *KeyValueNode {
 		p.addError(p.peek(), "unspecified value for after key", ErrUnspecifiedValueForKey)
 		return nil
 	}
-	keyValueNode.value = value
 
+	// Check to see if there was a new line after the value
 	lineTrivia := p.getLineTrivia()
+	hasNewLine := len(lineTrivia) > 0 && lineTrivia[len(lineTrivia)-1].Type == NewLineTrivia
+	if !hasNewLine && !p.isAtEnd() {
+		p.addError(p.peek(), "expected new line after value", ErrMissingNewLine)
+		return nil
+	}
+
+	keyValueNode.value = value
 	keyValueNode.lineTrivia = lineTrivia
 
 	return keyValueNode
 }
 
 func (p *Parser) value() Node {
-	if p.Match(MINUS, PLUS) {
+	if p.MatchAny(MINUS, PLUS) {
 		operator := p.previous().Type
 		switch {
-		case p.Match(FLOAT):
+		case p.MatchAny(FLOAT):
 			return createFloatNode(p, operator)
-		case p.Match(INTEGER):
+		case p.MatchAny(INTEGER):
 			return createIntNode(p, operator)
-		case p.Match(INF):
+		case p.MatchAny(INF):
 			return createInfinityNode(p, operator)
 		default:
 			p.addError(p.peek(), "Unable to recognize token that follows -/+", ErrUnrecognizedToken)
@@ -200,17 +210,17 @@ func (p *Parser) value() Node {
 	}
 
 	switch {
-	case p.Match(FLOAT):
+	case p.MatchAny(FLOAT):
 		return createFloatNode(p, 0)
-	case p.Match(INTEGER):
+	case p.MatchAny(INTEGER):
 		return createIntNode(p, 0)
-	case p.Match(FALSE):
+	case p.MatchAny(FALSE):
 		return createBoolNode(p, FALSE)
-	case p.Match(TRUE):
+	case p.MatchAny(TRUE):
 		return createBoolNode(p, TRUE)
-	case p.Match(INF):
+	case p.MatchAny(INF):
 		return createInfinityNode(p, 0)
-	case p.Match(BASIC_STRING, MULTILINE_BASIC_STRING):
+	case p.MatchAny(BASIC_STRING, MULTILINE_BASIC_STRING):
 		return createStringNode(p)
 	default:
 	}
@@ -290,7 +300,7 @@ func createFloatNode(p *Parser, operator TokenType) Node {
 // table -> LEFT_BRACKET  RIGHT_BRACKET
 func (p *Parser) Table() *TableNode {
 	tableNode := &TableNode{}
-	if !p.Match(BARE_KEY, BASIC_STRING) {
+	if !p.MatchAny(BARE_KEY, BASIC_STRING) {
 		p.addError(p.peek(), "Expected a key after left-bracket", ErrMalformedTableKey)
 		return nil
 	}
@@ -305,14 +315,20 @@ func (p *Parser) Table() *TableNode {
 	}
 	tableNode.key = key
 
-	if !p.Match(RIGHT_BRACKET) {
+	if !p.MatchAny(RIGHT_BRACKET) {
 		p.addError(p.peek(), "Expecting closing bracket ']' after key definition", ErrMissingClosingBracket)
 		return nil
 	}
 
 	// Check for in-line trivia
-	// Break out of loop once we find newline
+	// Break out of loop once we find newline or there are none, in that case it'll error
 	lineTrivia := p.getLineTrivia()
+	hasNewLine := len(lineTrivia) > 0 && lineTrivia[len(lineTrivia)-1].Type == NewLineTrivia
+	if !hasNewLine && !p.isAtEnd() {
+		p.addError(p.peek(), "Expected newline character after table header", ErrMissingNewLine)
+		return nil
+	}
+
 	tableNode.lineTrivia = lineTrivia
 
 	outer := p.keys
@@ -323,6 +339,8 @@ func (p *Parser) Table() *TableNode {
 
 	var children []Node
 	var pendingTrivia []Trivia
+
+	// Process children KV nodes until next table
 	for !p.isAtEnd() && !p.check(LEFT_BRACKET) {
 		pendingTrivia = p.getLeadingTrivia()
 		if p.isAtEnd() || p.check(LEFT_BRACKET) {
@@ -330,7 +348,7 @@ func (p *Parser) Table() *TableNode {
 		}
 
 		// Consume the first part of the key-value
-		if p.Match(BARE_KEY, BASIC_STRING, LITERAL_STRING) {
+		if p.MatchAny(BARE_KEY, BASIC_STRING, LITERAL_STRING) {
 			kv := p.KeyValue()
 
 			if kv != nil {
@@ -366,6 +384,8 @@ func (p *Parser) getLineTrivia() []Trivia {
 			lineTrivia = append(lineTrivia, Trivia{lexeme: newLine.Lexeme, Type: NewLineTrivia})
 			break
 		}
+
+		break
 	}
 	return lineTrivia
 }
@@ -386,8 +406,8 @@ func (p *Parser) Key() *KeyNode {
 		tokens:   []token{curr},
 	}
 
-	for p.Match(DOT) {
-		if !p.Match(BASIC_STRING, BARE_KEY, LITERAL_STRING) {
+	for p.MatchAny(DOT) {
+		if !p.MatchAny(BASIC_STRING, BARE_KEY, LITERAL_STRING) {
 			p.addError(p.peek(), "Expected string or bare key after dot '.'", ErrNoKeyAfterDot)
 			return nil
 		}
@@ -400,7 +420,7 @@ func (p *Parser) Key() *KeyNode {
 	return node
 }
 
-func (p *Parser) Match(types ...TokenType) bool {
+func (p *Parser) MatchAny(types ...TokenType) bool {
 	if slices.ContainsFunc(types, p.check) {
 		p.advance()
 		return true
