@@ -5,6 +5,19 @@ import (
 	"os"
 )
 
+// Parses a byte array into a TOML document
+func ParseBytes(src []byte) (*Document, error) {
+	scanner := newScanner(src)
+	scanner.scan()
+
+	parser := newParser(scanner.tokens)
+	doc, errs := parser.parse()
+	if len(errs) > 0 {
+		return nil, errs[0]
+	}
+	return doc, nil
+}
+
 // Reads the a TOML document from a path to a source file
 func LoadFile(path string) (*Document, error) {
 	f, err := os.ReadFile(path)
@@ -12,19 +25,6 @@ func LoadFile(path string) (*Document, error) {
 		return nil, err
 	}
 	return ParseBytes(f)
-}
-
-// Parses a byte array into a TOML document
-func ParseBytes(src []byte) (*Document, error) {
-	scanner := NewScanner(src)
-	scanner.Scan()
-
-	parser := NewParser(scanner.tokens)
-	doc, errs := parser.Parse()
-	if len(errs) > 0 {
-		return nil, errs[0]
-	}
-	return doc, nil
 }
 
 // Parses a string into a TOML document
@@ -43,7 +43,7 @@ func ParseFrom(r io.Reader) (*Document, error) {
 
 // Saves the current document source to a file
 func (d *Document) Save(path string) error {
-	s, err := NewPrinter().print(d)
+	s, err := newPrinter().print(d)
 	if err != nil {
 		return err
 	}

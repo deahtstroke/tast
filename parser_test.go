@@ -12,7 +12,7 @@ func Test_Parser(t *testing.T) {
 		expectedDoc *Document
 		wantErr     bool
 		errCount    int
-		errCodes    []ParseErrorCode
+		errCodes    []parserErrorCode
 	}{
 		// Comments
 		"General comments with key-value pairs": {
@@ -22,22 +22,22 @@ func Test_Parser(t *testing.T) {
 				BareKey("another"), Equal(), BasicString("# This is not a comment"), NewLine(),
 			),
 			expectedDoc: &Document{
-				content: []Node{
+				content: []node{
 					&KeyValueNode{
-						leadingTrivia: []Trivia{{lexeme: "# This is a full-line comment", Type: CommentTrivia}, {lexeme: "\n", Type: NewLineTrivia}},
-						lineTrivia:    []Trivia{{lexeme: "# This is a comment at the end of a line", Type: CommentTrivia}, {lexeme: "\n", Type: NewLineTrivia}},
-						key: &KeyNode{
+						leadingTrivia: []trivia{{Lexeme: "# This is a full-line comment", Type: commentTrivia}, {Lexeme: "\n", Type: newLineTrivia}},
+						lineTrivia:    []trivia{{Lexeme: "# This is a comment at the end of a line", Type: commentTrivia}, {Lexeme: "\n", Type: newLineTrivia}},
+						key: &keyNode{
 							segments: []string{"key"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "value",
 						},
 					},
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"another"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "# This is not a comment",
 						},
 					},
@@ -50,7 +50,7 @@ func Test_Parser(t *testing.T) {
 			),
 			wantErr:  true,
 			errCount: 1,
-			errCodes: []ParseErrorCode{ErrMissingAssignmentAfterKey},
+			errCodes: []parserErrorCode{errMissingAssignmentAfterKey},
 		},
 		"Leading comments belong to the respective nodes: Table + KVs": {
 			tokens: DeclareTokens(
@@ -62,28 +62,28 @@ func Test_Parser(t *testing.T) {
 				BareKey("key3"), Equal(), Float(3.14), NewLine(),
 			),
 			expectedDoc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						leadingTrivia: []Trivia{{lexeme: "# Trivia 1", Type: CommentTrivia}, {lexeme: "\n", Type: NewLineTrivia}},
-						key: &KeyNode{
+						leadingTrivia: []trivia{{Lexeme: "# Trivia 1", Type: commentTrivia}, {Lexeme: "\n", Type: newLineTrivia}},
+						key: &keyNode{
 							segments: []string{"key1"},
 						},
-						children: []Node{
+						children: []node{
 							&KeyValueNode{
-								leadingTrivia: []Trivia{{lexeme: "# Trivia 2", Type: CommentTrivia}, {lexeme: "\n", Type: NewLineTrivia}},
-								key: &KeyNode{
+								leadingTrivia: []trivia{{Lexeme: "# Trivia 2", Type: commentTrivia}, {Lexeme: "\n", Type: newLineTrivia}},
+								key: &keyNode{
 									segments: []string{"key2"},
 								},
-								value: &FloatNode{
+								value: &floatNode{
 									value: math.Inf(1),
 								},
 							},
 							&KeyValueNode{
-								leadingTrivia: []Trivia{{lexeme: "# Trivia 3", Type: CommentTrivia}, {lexeme: "\n", Type: NewLineTrivia}},
-								key: &KeyNode{
+								leadingTrivia: []trivia{{Lexeme: "# Trivia 3", Type: commentTrivia}, {Lexeme: "\n", Type: newLineTrivia}},
+								key: &keyNode{
 									segments: []string{"key3"},
 								},
-								value: &FloatNode{
+								value: &floatNode{
 									value: 3.14,
 								},
 							},
@@ -99,17 +99,17 @@ func Test_Parser(t *testing.T) {
 				LeftBracket(), BareKey("key"), RightBracket(), Comment("# This is in the same line as the table"),
 			),
 			expectedDoc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						leadingTrivia: []Trivia{
-							{lexeme: "# This is a comment", Type: CommentTrivia},
-							{lexeme: "\n", Type: NewLineTrivia},
-							{lexeme: "# This is another comment", Type: CommentTrivia},
-							{lexeme: "\n", Type: NewLineTrivia}},
-						lineTrivia: []Trivia{
-							{lexeme: "# This is in the same line as the table", Type: CommentTrivia},
+						leadingTrivia: []trivia{
+							{Lexeme: "# This is a comment", Type: commentTrivia},
+							{Lexeme: "\n", Type: newLineTrivia},
+							{Lexeme: "# This is another comment", Type: commentTrivia},
+							{Lexeme: "\n", Type: newLineTrivia}},
+						lineTrivia: []trivia{
+							{Lexeme: "# This is in the same line as the table", Type: commentTrivia},
 						},
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"key"},
 						},
 					},
@@ -124,22 +124,22 @@ func Test_Parser(t *testing.T) {
 				LeftBracket(), BareKey("key2"), RightBracket(), NewLine(),
 			),
 			expectedDoc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						leadingTrivia: []Trivia{
-							{lexeme: "# Comment 1", Type: CommentTrivia},
-							{lexeme: "\n", Type: NewLineTrivia},
+						leadingTrivia: []trivia{
+							{Lexeme: "# Comment 1", Type: commentTrivia},
+							{Lexeme: "\n", Type: newLineTrivia},
 						},
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"key"},
 						},
 					},
 					&TableNode{
-						leadingTrivia: []Trivia{
-							{lexeme: "# Comment 2", Type: CommentTrivia},
-							{lexeme: "\n", Type: NewLineTrivia},
+						leadingTrivia: []trivia{
+							{Lexeme: "# Comment 2", Type: commentTrivia},
+							{Lexeme: "\n", Type: newLineTrivia},
 						},
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"key2"},
 						},
 					},
@@ -153,14 +153,14 @@ func Test_Parser(t *testing.T) {
 				Comment("# Comment 2"),
 			),
 			expectedDoc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						leadingTrivia: []Trivia{
-							{lexeme: "# Comment 1", Type: CommentTrivia},
-							{lexeme: "\n", Type: NewLineTrivia},
+						leadingTrivia: []trivia{
+							{Lexeme: "# Comment 1", Type: commentTrivia},
+							{Lexeme: "\n", Type: newLineTrivia},
 						},
-						trailingTrivia: []Trivia{{lexeme: "# Comment 2", Type: CommentTrivia}},
-						key: &KeyNode{
+						trailingTrivia: []trivia{{Lexeme: "# Comment 2", Type: commentTrivia}},
+						key: &keyNode{
 							segments: []string{"key"},
 						},
 					},
@@ -173,12 +173,12 @@ func Test_Parser(t *testing.T) {
 				BareKey("key"), Equal(), BasicString("value"),
 			),
 			expectedDoc: &Document{
-				content: []Node{
+				content: []node{
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"key"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "value",
 						},
 					},
@@ -191,7 +191,7 @@ func Test_Parser(t *testing.T) {
 			),
 			wantErr:  true,
 			errCount: 1,
-			errCodes: []ParseErrorCode{ErrUnspecifiedValueForKey},
+			errCodes: []parserErrorCode{errUnspecifiedValueForKey},
 		},
 		// Keys
 		"BareKeys": {
@@ -202,36 +202,36 @@ func Test_Parser(t *testing.T) {
 				BareKey("1234"), Equal(), BasicString("value"),
 			),
 			expectedDoc: &Document{
-				content: []Node{
+				content: []node{
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"key"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "value",
 						},
 					},
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"bare_key"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "value",
 						},
 					},
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"bare-key"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "value",
 						},
 					},
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"1234"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "value",
 						},
 					},
@@ -246,44 +246,44 @@ func Test_Parser(t *testing.T) {
 				LiteralString("ʎǝʞ"), Equal(), BasicString("value"), NewLine(),
 				LiteralString("quoted \"value\""), Equal(), BasicString("value")),
 			expectedDoc: &Document{
-				content: []Node{
+				content: []node{
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"127.0.0.1"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "value",
 						},
 					},
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"character encoding"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "value",
 						},
 					},
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"key2"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "value",
 						},
 					},
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"ʎǝʞ"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "value",
 						},
 					},
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"quoted \"value\""},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "value",
 						},
 					},
@@ -298,36 +298,36 @@ func Test_Parser(t *testing.T) {
 				BareKey("site"), Dot(), BasicString("google.com"), Equal(), True(),
 			),
 			expectedDoc: &Document{
-				content: []Node{
+				content: []node{
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"name"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "Orange",
 						},
 					},
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"physical", "color"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "orange",
 						},
 					},
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"physical", "shape"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "round",
 						},
 					},
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"site", "google.com"},
 						},
-						value: &BooleanNode{
+						value: &booleanNode{
 							value: true,
 						},
 					},
@@ -341,7 +341,7 @@ func Test_Parser(t *testing.T) {
 			),
 			wantErr:  true,
 			errCount: 1,
-			errCodes: []ParseErrorCode{ErrDuplicateKey},
+			errCodes: []parserErrorCode{errDuplicateKey},
 		},
 		"Barekeys and quotted keys are equivalent on duplicate check": {
 			tokens: DeclareTokens(
@@ -350,17 +350,17 @@ func Test_Parser(t *testing.T) {
 			),
 			wantErr:  true,
 			errCount: 1,
-			errCodes: []ParseErrorCode{ErrDuplicateKey},
+			errCodes: []parserErrorCode{errDuplicateKey},
 		},
 		"Valid but discouraged key": {
 			tokens: DeclareTokens(BareKey("3"), Dot(), BareKey("14159"), Equal(), BasicString("pi")),
 			expectedDoc: &Document{
-				content: []Node{
+				content: []node{
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"3", "14159"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "pi",
 						},
 					},
@@ -374,7 +374,7 @@ func Test_Parser(t *testing.T) {
 			),
 			wantErr:  true,
 			errCount: 1,
-			errCodes: []ParseErrorCode{ErrDuplicateTable},
+			errCodes: []parserErrorCode{errDuplicateTable},
 		},
 		"Table with duplicate KVs should error": {
 			tokens: DeclareTokens(
@@ -384,7 +384,7 @@ func Test_Parser(t *testing.T) {
 			),
 			wantErr:  true,
 			errCount: 1,
-			errCodes: []ParseErrorCode{ErrDuplicateKey},
+			errCodes: []parserErrorCode{errDuplicateKey},
 		},
 		"Table with duplicate dotted KVs should error": {
 			tokens: DeclareTokens(
@@ -394,7 +394,7 @@ func Test_Parser(t *testing.T) {
 			),
 			wantErr:  true,
 			errCount: 1,
-			errCodes: []ParseErrorCode{ErrDuplicateKey},
+			errCodes: []parserErrorCode{errDuplicateKey},
 		},
 		"Missing NewLine after Key-Value should error": {
 			tokens: DeclareTokens(
@@ -403,7 +403,7 @@ func Test_Parser(t *testing.T) {
 			),
 			wantErr:  true,
 			errCount: 1,
-			errCodes: []ParseErrorCode{ErrMissingNewLine},
+			errCodes: []parserErrorCode{errMissingNewLine},
 		},
 		"Missing NewLine after Key-Value should error #2": {
 			tokens: DeclareTokens(
@@ -412,7 +412,7 @@ func Test_Parser(t *testing.T) {
 			),
 			wantErr:  true,
 			errCount: 1,
-			errCodes: []ParseErrorCode{ErrMissingNewLine},
+			errCodes: []parserErrorCode{errMissingNewLine},
 		},
 		"Missing NewLine after table should error": {
 			tokens: DeclareTokens(
@@ -421,7 +421,7 @@ func Test_Parser(t *testing.T) {
 			),
 			wantErr:  true,
 			errCount: 1,
-			errCodes: []ParseErrorCode{ErrMissingNewLine},
+			errCodes: []parserErrorCode{errMissingNewLine},
 		},
 		"Missing NewLine after table should error #2": {
 			tokens: DeclareTokens(
@@ -430,14 +430,14 @@ func Test_Parser(t *testing.T) {
 			),
 			wantErr:  true,
 			errCount: 1,
-			errCodes: []ParseErrorCode{ErrMissingNewLine},
+			errCodes: []parserErrorCode{errMissingNewLine},
 		},
 	}
 
 	for test, expected := range tests {
 		t.Run(test, func(t *testing.T) {
-			parser := NewParser(expected.tokens)
-			got, errs := parser.Parse()
+			parser := newParser(expected.tokens)
+			got, errs := parser.parse()
 			if expected.wantErr {
 				if len(errs) <= 0 {
 					t.Fatalf("expecting errors, found none")
@@ -479,7 +479,7 @@ func assertDocument(t *testing.T, expected, got *Document) {
 	}
 }
 
-func assertNode(t *testing.T, expected, got Node) {
+func assertNode(t *testing.T, expected, got node) {
 	t.Helper()
 
 	if expected == nil {
@@ -521,8 +521,8 @@ func assertNode(t *testing.T, expected, got Node) {
 		assertTrivia(t, e.leadingTrivia, g.leadingTrivia, "leading")
 		assertTrivia(t, e.lineTrivia, g.lineTrivia, "inline")
 		assertTrivia(t, e.trailingTrivia, g.trailingTrivia, "trailing")
-	case *StringNode:
-		g, ok := got.(*StringNode)
+	case *stringNode:
+		g, ok := got.(*stringNode)
 		if !ok {
 			t.Fatalf("expected *StringNode, got %T", got)
 		}
@@ -530,8 +530,8 @@ func assertNode(t *testing.T, expected, got Node) {
 		if g.value != e.value {
 			t.Fatalf("expected value %s, got %s", e.value, g.value)
 		}
-	case *IntegerNode:
-		g, ok := got.(*IntegerNode)
+	case *integerNode:
+		g, ok := got.(*integerNode)
 		if !ok {
 			t.Fatalf("expected *IntegerNode, got %T", got)
 		}
@@ -539,8 +539,8 @@ func assertNode(t *testing.T, expected, got Node) {
 		if g.value != e.value {
 			t.Fatalf("expected value %d, got %d", e.value, g.value)
 		}
-	case *FloatNode:
-		g, ok := got.(*FloatNode)
+	case *floatNode:
+		g, ok := got.(*floatNode)
 		if !ok {
 			t.Fatalf("expected *FloatNode, got %T", got)
 		}
@@ -548,8 +548,8 @@ func assertNode(t *testing.T, expected, got Node) {
 		if g.value != e.value {
 			t.Fatalf("expected value %f, got %f", e.value, g.value)
 		}
-	case *BooleanNode:
-		g, ok := got.(*BooleanNode)
+	case *booleanNode:
+		g, ok := got.(*booleanNode)
 		if !ok {
 			t.Fatalf("expected *BooleanNode, got %T", got)
 		}
@@ -562,7 +562,7 @@ func assertNode(t *testing.T, expected, got Node) {
 	}
 }
 
-func assertKeyNode(t *testing.T, expected, got *KeyNode) {
+func assertKeyNode(t *testing.T, expected, got *keyNode) {
 	t.Helper()
 
 	if len(expected.segments) != len(got.segments) {
@@ -576,7 +576,7 @@ func assertKeyNode(t *testing.T, expected, got *KeyNode) {
 	}
 }
 
-func assertTrivia(t *testing.T, expected, got []Trivia, label string) {
+func assertTrivia(t *testing.T, expected, got []trivia, label string) {
 	t.Helper()
 
 	if expected == nil {
@@ -588,17 +588,17 @@ func assertTrivia(t *testing.T, expected, got []Trivia, label string) {
 	}
 
 	for i := range len(expected) {
-		if expected[i].lexeme != got[i].lexeme {
-			t.Fatalf("%s trivia lexeme %d: expected %s, got %s", label, i, expected[i].lexeme, got[i].lexeme)
+		if expected[i].Lexeme != got[i].Lexeme {
+			t.Fatalf("%s trivia lexeme %d: expected %s, got %s", label, i, expected[i].Lexeme, got[i].Lexeme)
 		}
 
 		if expected[i].Type != got[i].Type {
-			t.Fatalf("%s trivia type %d: expected %s, got %s", label, i, TriviaTypes[expected[i].Type], TriviaTypes[got[i].Type])
+			t.Fatalf("%s trivia type %d: expected %s, got %s", label, i, triviaTypes[expected[i].Type], triviaTypes[got[i].Type])
 		}
 	}
 }
 
-func containsErrorCode(errs []ParseError, code ParseErrorCode) bool {
+func containsErrorCode(errs []parseError, code parserErrorCode) bool {
 	for _, err := range errs {
 		if err.Code == code {
 			return true
@@ -619,12 +619,12 @@ func DeclareTokens(opts ...TokenOpt) []token {
 	return tokens
 }
 
-func Comment(comment string) TokenOpt {
+func Comment(c string) TokenOpt {
 	return func() token {
 		return token{
-			Type:    COMMENT,
-			Literal: comment,
-			Lexeme:  comment,
+			Type:    comment,
+			Literal: c,
+			Lexeme:  c,
 		}
 	}
 }
@@ -632,7 +632,7 @@ func Comment(comment string) TokenOpt {
 func LeftBracket() TokenOpt {
 	return func() token {
 		return token{
-			Type:    LEFT_BRACKET,
+			Type:    leftBracket,
 			Literal: string("["),
 			Lexeme:  "[",
 		}
@@ -642,7 +642,7 @@ func LeftBracket() TokenOpt {
 func RightBracket() TokenOpt {
 	return func() token {
 		return token{
-			Type:    RIGHT_BRACKET,
+			Type:    rightBracket,
 			Literal: string("]"),
 			Lexeme:  "]",
 		}
@@ -652,7 +652,7 @@ func RightBracket() TokenOpt {
 func Comma() TokenOpt {
 	return func() token {
 		return token{
-			Type:    COMMA,
+			Type:    comma,
 			Literal: string(","),
 			Lexeme:  ",",
 		}
@@ -662,7 +662,7 @@ func Comma() TokenOpt {
 func Dot() TokenOpt {
 	return func() token {
 		return token{
-			Type:    DOT,
+			Type:    dot,
 			Literal: string("."),
 			Lexeme:  ".",
 		}
@@ -672,7 +672,7 @@ func Dot() TokenOpt {
 func Minus() TokenOpt {
 	return func() token {
 		return token{
-			Type:    MINUS,
+			Type:    minus,
 			Literal: string("-"),
 			Lexeme:  "-",
 		}
@@ -682,7 +682,7 @@ func Minus() TokenOpt {
 func Plus() TokenOpt {
 	return func() token {
 		return token{
-			Type:    PLUS,
+			Type:    plus,
 			Literal: string("+"),
 			Lexeme:  "+",
 		}
@@ -692,7 +692,7 @@ func Plus() TokenOpt {
 func Slash() TokenOpt {
 	return func() token {
 		return token{
-			Type:    SLASH,
+			Type:    slash,
 			Literal: string("\\"),
 			Lexeme:  "\\",
 		}
@@ -702,7 +702,7 @@ func Slash() TokenOpt {
 func Star() TokenOpt {
 	return func() token {
 		return token{
-			Type:    STAR,
+			Type:    star,
 			Literal: string("*"),
 			Lexeme:  "*",
 		}
@@ -712,7 +712,7 @@ func Star() TokenOpt {
 func Equal() TokenOpt {
 	return func() token {
 		return token{
-			Type:    EQUAL,
+			Type:    equal,
 			Literal: string("="),
 			Lexeme:  "=",
 		}
@@ -722,7 +722,7 @@ func Equal() TokenOpt {
 func BasicString(value string) TokenOpt {
 	return func() token {
 		return token{
-			Type:    BASIC_STRING,
+			Type:    basicString,
 			Literal: value,
 			Lexeme:  fmt.Sprintf("\"%s\"", value),
 		}
@@ -732,7 +732,7 @@ func BasicString(value string) TokenOpt {
 func LiteralString(value string) TokenOpt {
 	return func() token {
 		return token{
-			Type:    LITERAL_STRING,
+			Type:    literalString,
 			Literal: value,
 			Lexeme:  fmt.Sprintf("'%s'", value),
 		}
@@ -742,7 +742,7 @@ func LiteralString(value string) TokenOpt {
 func Float(value float64) TokenOpt {
 	return func() token {
 		return token{
-			Type:    FLOAT,
+			Type:    floatPoint,
 			Literal: value,
 			Lexeme:  fmt.Sprintf("%v", value),
 		}
@@ -752,7 +752,7 @@ func Float(value float64) TokenOpt {
 func Integer(value int64) TokenOpt {
 	return func() token {
 		return token{
-			Type:    INTEGER,
+			Type:    integer,
 			Literal: value,
 			Lexeme:  fmt.Sprintf("%v", value),
 		}
@@ -762,7 +762,7 @@ func Integer(value int64) TokenOpt {
 func BareKey(literal string) TokenOpt {
 	return func() token {
 		return token{
-			Type:    BARE_KEY,
+			Type:    bareKey,
 			Literal: string(literal),
 			Lexeme:  literal,
 		}
@@ -772,7 +772,7 @@ func BareKey(literal string) TokenOpt {
 func False() TokenOpt {
 	return func() token {
 		return token{
-			Type:    FALSE,
+			Type:    boolean,
 			Literal: bool(false),
 			Lexeme:  "false",
 		}
@@ -782,7 +782,7 @@ func False() TokenOpt {
 func True() TokenOpt {
 	return func() token {
 		return token{
-			Type:    TRUE,
+			Type:    boolean,
 			Literal: bool(true),
 			Lexeme:  "true",
 		}
@@ -796,7 +796,7 @@ func Inf(op int) TokenOpt {
 			literal = "-inf"
 		}
 		return token{
-			Type:    INF,
+			Type:    infinity,
 			Literal: literal,
 			Lexeme:  "inf",
 		}
@@ -806,7 +806,7 @@ func Inf(op int) TokenOpt {
 func Eof() TokenOpt {
 	return func() token {
 		return token{
-			Type: EOF,
+			Type: eof,
 		}
 	}
 }
@@ -814,7 +814,7 @@ func Eof() TokenOpt {
 func NewLine() TokenOpt {
 	return func() token {
 		return token{
-			Type:    NEW_LINE,
+			Type:    newLine,
 			Lexeme:  "\n",
 			Literal: string("\n"),
 		}

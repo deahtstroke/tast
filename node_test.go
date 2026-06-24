@@ -13,9 +13,9 @@ func Test_Table(t *testing.T) {
 	}{
 		"Single key segment should be found": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"key"},
 						},
 					},
@@ -25,9 +25,9 @@ func Test_Table(t *testing.T) {
 		},
 		"Multiple key segments should be found": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"foo", "bar", "bez"},
 						},
 					},
@@ -37,9 +37,9 @@ func Test_Table(t *testing.T) {
 		},
 		"Key not found": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"foo", "bar", "bez"},
 						},
 					},
@@ -73,30 +73,30 @@ func Test_Set(t *testing.T) {
 		key      string
 		table    string
 		value    any
-		wantType Node
+		wantType node
 		wantErr  bool
 	}{
 		"Simple key string": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"table"},
 						},
-						children: []Node{
+						children: []node{
 							&KeyValueNode{
-								key: &KeyNode{
+								key: &keyNode{
 									segments: []string{"foo"},
 								},
-								value: &StringNode{
+								value: &stringNode{
 									value: "bar",
 								},
 							},
 							&KeyValueNode{
-								key: &KeyNode{
+								key: &keyNode{
 									segments: []string{"hello"},
 								},
-								value: &StringNode{
+								value: &stringNode{
 									value: "world",
 								},
 							},
@@ -107,22 +107,22 @@ func Test_Set(t *testing.T) {
 			table:    "table",
 			key:      "foo",
 			value:    int64(1),
-			wantType: &IntegerNode{}, // Just need the type, value can be ignored
+			wantType: &integerNode{}, // Just need the type, value can be ignored
 			wantErr:  false,
 		},
 		"dotted key string": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"table"},
 						},
-						children: []Node{
+						children: []node{
 							&KeyValueNode{
-								key: &KeyNode{
+								key: &keyNode{
 									segments: []string{"foo", "bar"},
 								},
-								value: &StringNode{
+								value: &stringNode{
 									value: "hello world!",
 								},
 							},
@@ -133,22 +133,22 @@ func Test_Set(t *testing.T) {
 			table:    "table",
 			key:      "foo.bar",
 			value:    int64(1),
-			wantType: &IntegerNode{}, // Just need the type, value can be ignored
+			wantType: &integerNode{}, // Just need the type, value can be ignored
 			wantErr:  false,
 		},
 		"Simple Key replaced by string node": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"table"},
 						},
-						children: []Node{
+						children: []node{
 							&KeyValueNode{
-								key: &KeyNode{
+								key: &keyNode{
 									segments: []string{"foo", "bar"},
 								},
-								value: &StringNode{
+								value: &stringNode{
 									value: "hello world!",
 								},
 							},
@@ -159,22 +159,22 @@ func Test_Set(t *testing.T) {
 			table:    "table",
 			key:      "foo.bar",
 			value:    string("Hello!"),
-			wantType: &StringNode{},
+			wantType: &stringNode{},
 			wantErr:  false,
 		},
 		"Simple Key replaced by boolean node": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"table"},
 						},
-						children: []Node{
+						children: []node{
 							&KeyValueNode{
-								key: &KeyNode{
+								key: &keyNode{
 									segments: []string{"foo", "bar"},
 								},
-								value: &StringNode{
+								value: &stringNode{
 									value: "hello world!",
 								},
 							},
@@ -185,22 +185,22 @@ func Test_Set(t *testing.T) {
 			table:    "table",
 			key:      "foo.bar",
 			value:    bool(true),
-			wantType: &BooleanNode{},
+			wantType: &booleanNode{},
 			wantErr:  false,
 		},
 		"Simple key not found should return false": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"table"},
 						},
-						children: []Node{
+						children: []node{
 							&KeyValueNode{
-								key: &KeyNode{
+								key: &keyNode{
 									segments: []string{"foo"},
 								},
-								value: &StringNode{
+								value: &stringNode{
 									value: "hello world!",
 								},
 							},
@@ -258,17 +258,17 @@ func Test_Delete(t *testing.T) {
 	}{
 		"Delete should find simple keys": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"table"},
 						},
-						children: []Node{
+						children: []node{
 							&KeyValueNode{
-								key: &KeyNode{
+								key: &keyNode{
 									segments: []string{"key"},
 								},
-								value: &StringNode{value: "hello world!"},
+								value: &stringNode{value: "hello world!"},
 							},
 						},
 					},
@@ -280,17 +280,17 @@ func Test_Delete(t *testing.T) {
 		},
 		"Delete should find dotted keys": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"table"},
 						},
-						children: []Node{
+						children: []node{
 							&KeyValueNode{
-								key: &KeyNode{
+								key: &keyNode{
 									segments: []string{"foo", "bar"},
 								},
-								value: &StringNode{value: "hello world!"},
+								value: &stringNode{value: "hello world!"},
 							},
 						},
 					},
@@ -302,17 +302,17 @@ func Test_Delete(t *testing.T) {
 		},
 		"Delete should fail on key not-found": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&TableNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"table"},
 						},
-						children: []Node{
+						children: []node{
 							&KeyValueNode{
-								key: &KeyNode{
+								key: &keyNode{
 									segments: []string{"foo"},
 								},
-								value: &StringNode{value: "hello world!"},
+								value: &stringNode{value: "hello world!"},
 							},
 						},
 					},
@@ -352,17 +352,17 @@ func Test_KeyValueSet(t *testing.T) {
 		doc      *Document
 		keyArg   string
 		value    any
-		nodeType Node
+		nodeType node
 		wantErr  bool
 	}{
 		"simple key should be found and set": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"key"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "hello <name>",
 						},
 					},
@@ -370,17 +370,17 @@ func Test_KeyValueSet(t *testing.T) {
 			},
 			keyArg:   "key",
 			value:    1,
-			nodeType: &IntegerNode{},
+			nodeType: &integerNode{},
 			wantErr:  false,
 		},
 		"dotted keys should be found and set": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"foo", "bar"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "hello <name>",
 						},
 					},
@@ -388,25 +388,25 @@ func Test_KeyValueSet(t *testing.T) {
 			},
 			keyArg:   "foo.bar",
 			value:    1,
-			nodeType: &IntegerNode{},
+			nodeType: &integerNode{},
 			wantErr:  false,
 		},
 		"unsupported types should error (anything besides Go primitives)": {
 			doc: &Document{
-				content: []Node{
+				content: []node{
 					&KeyValueNode{
-						key: &KeyNode{
+						key: &keyNode{
 							segments: []string{"foo"},
 						},
-						value: &StringNode{
+						value: &stringNode{
 							value: "hello <name>",
 						},
 					},
 				},
 			},
 			keyArg:   "foo",
-			value:    &IntegerNode{value: int64(1)},
-			nodeType: &IntegerNode{},
+			value:    &integerNode{value: int64(1)},
+			nodeType: &integerNode{},
 			wantErr:  true,
 		},
 	}

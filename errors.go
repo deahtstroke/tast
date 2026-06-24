@@ -4,69 +4,70 @@ import (
 	"fmt"
 )
 
-type ParseErrorCode int
+type parserErrorCode int
 
 const (
-	ErrMissingAssignmentAfterKey ParseErrorCode = iota
-	ErrMalformedTableKey
-	ErrMissingClosingBracket
-	ErrNoKeyAfterDot
-	ErrUnrecognizedToken
-	ErrParsingString
-	ErrParsingInt
-	ErrParsingFloat
-	ErrDuplicateKey
-	ErrDuplicateTable
-	ErrUnspecifiedValueForKey
-	ErrMissingNewLine
+	errMissingAssignmentAfterKey parserErrorCode = iota
+	errMalformedTableKey
+	errMissingClosingBracket
+	errNoKeyAfterDot
+	errUnrecognizedToken
+	errParsingString
+	errParsingInt
+	errParsingFloat
+	errParsingBool
+	errDuplicateKey
+	errDuplicateTable
+	errUnspecifiedValueForKey
+	errMissingNewLine
 )
 
-type ParseError struct {
+type parseError struct {
 	Token   token
 	Message string
-	Code    ParseErrorCode
+	Code    parserErrorCode
 }
 
-func (c ParseErrorCode) String() string {
+func (c parserErrorCode) String() string {
 	switch c {
-	case ErrMissingAssignmentAfterKey:
+	case errMissingAssignmentAfterKey:
 		return "ErrMissingAssignmentAfterKey"
-	case ErrMalformedTableKey:
+	case errMalformedTableKey:
 		return "ErrMalformedTableKey"
-	case ErrMissingClosingBracket:
+	case errMissingClosingBracket:
 		return "ErrMissingClosingBracket"
-	case ErrNoKeyAfterDot:
+	case errNoKeyAfterDot:
 		return "ErrNoKeyAfterDot"
-	case ErrUnrecognizedToken:
+	case errUnrecognizedToken:
 		return "ErrUnrecognizedToken"
-	case ErrParsingString:
+	case errParsingString:
 		return "ErrParsingString"
-	case ErrParsingInt:
+	case errParsingInt:
 		return "ErrParsingInt"
-	case ErrParsingFloat:
+	case errParsingFloat:
 		return "ErrParsingFloat"
-	case ErrDuplicateKey:
+	case errDuplicateKey:
 		return "ErrDuplicateKey"
-	case ErrUnspecifiedValueForKey:
+	case errUnspecifiedValueForKey:
 		return "ErrUnspecifiedValueForKey"
 	default:
 		return "Unknown error code"
 	}
 }
 
-func (e ParseError) Error() string {
+func (e parseError) Error() string {
 	return fmt.Sprintf("tast [%s]: parse error at %d:%d: %s",
 		e.Code.String(), e.Token.Line, e.Token.Column, e.Message)
 }
 
-type ScanError struct {
+type scanError struct {
 	Line    int
 	Column  int
 	Offset  int
 	Message string
 }
 
-func (e ScanError) Error() string {
+func (e scanError) Error() string {
 	return fmt.Sprintf("tast: scan error at %d:%d (offset %d): %s",
 		e.Line, e.Column, e.Offset, e.Message)
 }

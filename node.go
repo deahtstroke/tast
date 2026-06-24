@@ -6,28 +6,31 @@ import (
 	"strings"
 )
 
-const STRING_SEPARATOR = "."
+const stringSeparator = "."
 
-type Visitor interface {
-	VisitTableNode(*TableNode) error
-	VisitKeyNode(*KeyNode) error
-	VisitKeyValueNode(*KeyValueNode) error
-	VisitStringNode(*StringNode) error
-	VisitIntegerNode(*IntegerNode) error
-	VisitFloatNode(*FloatNode) error
-	VisitBooleanNode(*BooleanNode) error
+type visitor interface {
+	visitTableNode(*TableNode) error
+	visitKeyValueNode(*KeyValueNode) error
+	visitKeyNode(*keyNode) error
+	visitStringNode(*stringNode) error
+	visitIntegerNode(*integerNode) error
+	visitFloatNode(*floatNode) error
+	visitBooleanNode(*booleanNode) error
 }
 
-// The Node interface represents all the shared methods between all different
+// The node interface represents all the shared methods between all different
 // types of Nodes specified in the TOML spec
-type Node interface {
-	Accept(Visitor) error
-	GetToken() token
+type node interface {
+	accept(visitor) error
+	getToken() token
 }
 
-// Top-most node representation of a TOML file
+// Document represents the top-most node of a TOML parse-tree
+//
+// This is where most operations will be done like finding a table,
+// mutating a key-value pair, or fetching a value
 type Document struct {
-	content []Node
+	content []node
 }
 
 // FindKey() retrieves a key-value node defined by the 'key' parameter
@@ -36,7 +39,7 @@ type Document struct {
 func (d *Document) FindKey(key string) (*KeyValueNode, bool) {
 	for _, node := range d.content {
 		kv, ok := node.(*KeyValueNode)
-		if ok && KeysMatch(key, kv.key.segments) {
+		if ok && keysMatch(key, kv.key.segments) {
 			return kv, true
 		}
 	}
@@ -49,7 +52,7 @@ func (d *Document) FindKey(key string) (*KeyValueNode, bool) {
 func (d *Document) Table(key string) (*TableNode, bool) {
 	for _, node := range d.content {
 		t, ok := node.(*TableNode)
-		if ok && KeysMatch(key, t.key.segments) {
+		if ok && keysMatch(key, t.key.segments) {
 			return t, true
 		}
 	}
@@ -58,61 +61,62 @@ func (d *Document) Table(key string) (*TableNode, bool) {
 
 // Returns a string representation of the document
 func (d *Document) String() (string, error) {
-	p := NewPrinter()
+	p := newPrinter()
 	return p.print(d)
 }
 
-type TriviaType int
+type triviaType int
 
 const (
-	NewLineTrivia TriviaType = iota
-	TabTrivia
-	CommentTrivia
+	newLineTrivia triviaType = iota
+	tabTrivia
+	commentTrivia
 )
 
-var TriviaTypes map[TriviaType]string = map[TriviaType]string{
-	NewLineTrivia: "NewLineTrivia",
-	TabTrivia:     "TabTrivia",
-	CommentTrivia: "CommentTrivia",
+var triviaTypes map[triviaType]string = map[triviaType]string{
+	newLineTrivia: "NewLineTrivia",
+	tabTrivia:     "TabTrivia",
+	commentTrivia: "CommentTrivia",
 }
 
-// Trivia really is just comments that start with '#'
-// the only worthwhile state saving for trivia is the
-// raw literal string in the comment
-type Trivia struct {
-	Type   TriviaType
-	lexeme string
+// Trivia represents any source characters that are not part of the
+// semantic value of the document — comments, newlines, whitespace,
+// and other non-meaningful tokens that are preserved for
+// source-faithful round-tripping
+type trivia struct {
+	Type   triviaType
+	Lexeme string
 }
 
 // Node reprsentation of a TOML table as specified in
 // https://toml.io/en/v1.1.0#table
 type TableNode struct {
 	// The key of the TableNode
-	key *KeyNode
+	key *keyNode
 
 	// Child nodes that belong to this table
-	children []Node
+	children []node
 
 	// Any leading comments that may come before the
 	// table itself
-	leadingTrivia []Trivia
+	leadingTrivia []trivia
 
 	// Comment in the same line as the table
-	lineTrivia []Trivia
+	lineTrivia []trivia
 
 	// Any comments that are leftover after the table
 	// itself
-	trailingTrivia []Trivia
+	trailingTrivia []trivia
 
 	// tokens that make up the table-key
 	tokens []token
 }
 
-func (n *TableNode) Accept(v Visitor) error {
-	return v.VisitTableNode(n)
+func (n *TableNode) accept(v visitor) error {
+	return v.visitTableNode(n)
 }
 
-func (n *TableNode) GetToken() token {
+func (n *TableNode) getToken() token {
 	return n.tokens[0]
 }
 
@@ -120,7 +124,7 @@ func (n *TableNode) GetToken() token {
 // TOML keys according to the spec., can be bare-keys, basic strings,
 // or a combination of both
 func (n *TableNode) Key() string {
-	return n.key.Key()
+	return n.key.key()
 }
 
 // Set() mutates a given key given by the parameter 'key' with the
@@ -142,55 +146,53 @@ func (n *TableNode) Set(key string, value any) error {
 	case int32:
 		return n.Set(key, int64(v))
 	case int64:
-		kv.value = &IntegerNode{
+		kv.value = &integerNode{
 			value: v,
 			token: token{
-				Type:    INTEGER,
+				Type:    integer,
 				Lexeme:  strconv.FormatInt(v, 10),
 				Literal: v,
-				Line:    kv.value.GetToken().Line,
-				Column:  kv.value.GetToken().Column,
+				Line:    kv.value.getToken().Line,
+				Column:  kv.value.getToken().Column,
 			},
 		}
 	case string:
-		kv.value = &StringNode{
+		kv.value = &stringNode{
 			value: v,
 			token: token{
-				Type:    BASIC_STRING,
+				Type:    basicString,
 				Lexeme:  `"` + v + `"`,
 				Literal: v,
-				Line:    kv.value.GetToken().Line,
-				Column:  kv.value.GetToken().Column,
+				Line:    kv.value.getToken().Line,
+				Column:  kv.value.getToken().Column,
 			},
 		}
 	case float32:
 		return kv.Set(float64(v))
 	case float64:
-		kv.value = &FloatNode{
+		kv.value = &floatNode{
 			value: v,
 			token: token{
-				Type:    FLOAT,
+				Type:    floatPoint,
 				Lexeme:  strconv.FormatFloat(v, 'f', -1, 64),
 				Literal: v,
-				Line:    kv.value.GetToken().Line,
-				Column:  kv.value.GetToken().Column,
+				Line:    kv.value.getToken().Line,
+				Column:  kv.value.getToken().Column,
 			},
 		}
 	case bool:
 		lexeme := "false"
-		nodeType := FALSE
 		if v {
-			nodeType = TRUE
 			lexeme = "true"
 		}
-		kv.value = &BooleanNode{
+		kv.value = &booleanNode{
 			value: v,
 			token: token{
-				Type:    nodeType,
+				Type:    boolean,
 				Lexeme:  lexeme,
 				Literal: v,
-				Line:    kv.value.GetToken().Line,
-				Column:  kv.value.GetToken().Column,
+				Line:    kv.value.getToken().Line,
+				Column:  kv.value.getToken().Column,
 			},
 		}
 	default:
@@ -227,7 +229,7 @@ func (n *TableNode) FindKey(key string) (*KeyValueNode, bool) {
 
 func (n *TableNode) findNodeIndex(key string) int {
 	for i, child := range n.children {
-		if kv, ok := child.(*KeyValueNode); ok && KeysMatch(key, kv.key.segments) {
+		if kv, ok := child.(*KeyValueNode); ok && keysMatch(key, kv.key.segments) {
 			return i
 		}
 	}
@@ -237,7 +239,7 @@ func (n *TableNode) findNodeIndex(key string) int {
 
 // Node representation of a Key in the TOML specification
 // https://toml.io/en/v1.1.0#keys
-type KeyNode struct {
+type keyNode struct {
 	// segments that make up the Key
 	// KeyNodes can be made up of bare-keys and quoted-keys
 	segments []string
@@ -246,52 +248,56 @@ type KeyNode struct {
 	tokens []token
 }
 
-func (n *KeyNode) Key() string {
+func (n *keyNode) key() string {
 	if len(n.segments) == 0 {
 		return ""
 	}
 
-	return strings.Join(n.segments, STRING_SEPARATOR)
+	return strings.Join(n.segments, stringSeparator)
 }
 
-func (n *KeyNode) Accept(v Visitor) error {
-	return v.VisitKeyNode(n)
+func (n *keyNode) accept(v visitor) error {
+	return v.visitKeyNode(n)
+}
+
+func (n *keyNode) getToken() token {
+	return n.tokens[0]
 }
 
 // Node representation of a Key-Value pair in the TOML specification
 // https://toml.io/en/v1.1.0#keyvalue-pair
 type KeyValueNode struct {
 	// key identifier that represents this key-value pair
-	key *KeyNode
+	key *keyNode
 
 	// value that this key-value pair has
-	value Node
+	value node
 
 	// List of scanner tokens that make up this key-value pair
 	tokens []token
 
 	// Any leading comments that may come before a key-value node
-	leadingTrivia []Trivia
+	leadingTrivia []trivia
 
 	// Comment at the end of the line in a key-value node
-	lineTrivia []Trivia
+	lineTrivia []trivia
 
 	// Any comments at the end of a key-value node
 	// Note: This field only gets filled if the only tokens leftover
 	// after the dangling trivia are New lines and/or EOF
-	trailingTrivia []Trivia
+	trailingTrivia []trivia
 }
 
-func (kv *KeyValueNode) Accept(v Visitor) error {
-	return v.VisitKeyValueNode(kv)
+func (kv *KeyValueNode) accept(v visitor) error {
+	return v.visitKeyValueNode(kv)
 }
 
-func (kv *KeyValueNode) GetToken() token {
+func (kv *KeyValueNode) getToken() token {
 	return kv.tokens[0]
 }
 
 func (kv *KeyValueNode) Int() (int64, bool) {
-	i, ok := kv.value.(*IntegerNode)
+	i, ok := kv.value.(*integerNode)
 	if !ok {
 		return -1, false
 	}
@@ -300,7 +306,7 @@ func (kv *KeyValueNode) Int() (int64, bool) {
 }
 
 func (kv *KeyValueNode) String() (string, bool) {
-	s, ok := kv.value.(*StringNode)
+	s, ok := kv.value.(*stringNode)
 	if !ok {
 		return "", false
 	}
@@ -309,7 +315,7 @@ func (kv *KeyValueNode) String() (string, bool) {
 }
 
 func (kv *KeyValueNode) Bool() (bool, bool) {
-	b, ok := kv.value.(*BooleanNode)
+	b, ok := kv.value.(*booleanNode)
 	if !ok {
 		return false, false
 	}
@@ -318,7 +324,7 @@ func (kv *KeyValueNode) Bool() (bool, bool) {
 }
 
 func (kv *KeyValueNode) Float() (float64, bool) {
-	f, ok := kv.value.(*FloatNode)
+	f, ok := kv.value.(*floatNode)
 	if !ok {
 		return 0.0, false
 	}
@@ -335,55 +341,53 @@ func (kv *KeyValueNode) Set(value any) error {
 	case int32:
 		return kv.Set(int64(v))
 	case int64:
-		kv.value = &IntegerNode{
+		kv.value = &integerNode{
 			value: v,
 			token: token{
-				Type:    INTEGER,
+				Type:    integer,
 				Lexeme:  strconv.FormatInt(v, 10),
 				Literal: v,
-				Line:    kv.value.GetToken().Line,
-				Column:  kv.value.GetToken().Column,
+				Line:    kv.value.getToken().Line,
+				Column:  kv.value.getToken().Column,
 			},
 		}
 	case string:
-		kv.value = &StringNode{
+		kv.value = &stringNode{
 			value: v,
 			token: token{
-				Type:    BASIC_STRING,
+				Type:    basicString,
 				Lexeme:  `"` + v + `"`,
 				Literal: v,
-				Line:    kv.value.GetToken().Line,
-				Column:  kv.value.GetToken().Column,
+				Line:    kv.value.getToken().Line,
+				Column:  kv.value.getToken().Column,
 			},
 		}
 	case float32:
 		return kv.Set(float64(v))
 	case float64:
-		kv.value = &FloatNode{
+		kv.value = &floatNode{
 			value: v,
 			token: token{
-				Type:    FLOAT,
+				Type:    floatPoint,
 				Lexeme:  strconv.FormatFloat(v, 'f', -1, 64),
 				Literal: v,
-				Line:    kv.value.GetToken().Line,
-				Column:  kv.value.GetToken().Column,
+				Line:    kv.value.getToken().Line,
+				Column:  kv.value.getToken().Column,
 			},
 		}
 	case bool:
 		lexeme := "false"
-		nodeType := FALSE
 		if v {
-			nodeType = TRUE
 			lexeme = "true"
 		}
-		kv.value = &BooleanNode{
+		kv.value = &booleanNode{
 			value: v,
 			token: token{
-				Type:    nodeType,
+				Type:    boolean,
 				Lexeme:  lexeme,
 				Literal: v,
-				Line:    kv.value.GetToken().Line,
-				Column:  kv.value.GetToken().Column,
+				Line:    kv.value.getToken().Line,
+				Column:  kv.value.getToken().Column,
 			},
 		}
 	default:
@@ -393,60 +397,60 @@ func (kv *KeyValueNode) Set(value any) error {
 	return nil
 }
 
-type StringNode struct {
+type stringNode struct {
 	value string
 	token token
 }
 
-func (n *StringNode) Accept(v Visitor) error {
-	return v.VisitStringNode(n)
+func (n *stringNode) accept(v visitor) error {
+	return v.visitStringNode(n)
 }
 
-func (n *StringNode) GetToken() token {
+func (n *stringNode) getToken() token {
 	return n.token
 }
 
-type IntegerNode struct {
+type integerNode struct {
 	value int64
 	token token
 }
 
-func (n *IntegerNode) Accept(v Visitor) error {
-	return v.VisitIntegerNode(n)
+func (n *integerNode) accept(v visitor) error {
+	return v.visitIntegerNode(n)
 }
 
-func (n *IntegerNode) GetToken() token {
+func (n *integerNode) getToken() token {
 	return n.token
 }
 
-type FloatNode struct {
+type floatNode struct {
 	value float64
 	token token
 }
 
-func (n *FloatNode) Accept(v Visitor) error {
-	return v.VisitFloatNode(n)
+func (n *floatNode) accept(v visitor) error {
+	return v.visitFloatNode(n)
 }
 
-func (n *FloatNode) GetToken() token {
+func (n *floatNode) getToken() token {
 	return n.token
 }
 
-type BooleanNode struct {
+type booleanNode struct {
 	value bool
 	token token
 }
 
-func (n *BooleanNode) Accept(v Visitor) error {
-	return v.VisitBooleanNode(n)
+func (n *booleanNode) accept(v visitor) error {
+	return v.visitBooleanNode(n)
 }
 
-func (n *BooleanNode) GetToken() token {
+func (n *booleanNode) getToken() token {
 	return n.token
 }
 
-func KeysMatch(key string, segments []string) bool {
-	keyArr := strings.Split(key, STRING_SEPARATOR)
+func keysMatch(key string, segments []string) bool {
+	keyArr := strings.Split(key, stringSeparator)
 	if len(keyArr) != len(segments) {
 		return false
 	}

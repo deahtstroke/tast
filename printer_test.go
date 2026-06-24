@@ -17,7 +17,7 @@ func Test_PrinterSuccess(t *testing.T) {
 		makeKV([]string{"username"}, makeVal("daniel")),
 	)
 
-	got, err := NewPrinter().print(doc)
+	got, err := newPrinter().print(doc)
 	if err != nil {
 		t.Fatalf("Got an error while calling 'print': %v", err)
 	}
@@ -37,13 +37,13 @@ username = "daniel"`
 	}
 }
 
-func makeDoc(nodes ...Node) *Document {
+func makeDoc(nodes ...node) *Document {
 	return &Document{content: nodes}
 }
 
-type NodeOption func(Node)
+type NodeOption func(node)
 
-func makeTable(keyNode *KeyNode, opts ...NodeOption) *TableNode {
+func makeTable(keyNode *keyNode, opts ...NodeOption) *TableNode {
 	table := &TableNode{
 		key:    keyNode,
 		tokens: keyNode.tokens,
@@ -56,10 +56,10 @@ func makeTable(keyNode *KeyNode, opts ...NodeOption) *TableNode {
 	return table
 }
 
-func withLeading(trivia ...string) NodeOption {
-	return func(node Node) {
-		var leadingTrivia []Trivia
-		for _, t := range trivia {
+func withLeading(tr ...string) NodeOption {
+	return func(node node) {
+		var leadingTrivia []trivia
+		for _, t := range tr {
 			leadingTrivia = append(leadingTrivia, makeTrivia(t))
 		}
 
@@ -73,10 +73,10 @@ func withLeading(trivia ...string) NodeOption {
 	}
 }
 
-func withTrailing(trivia ...string) NodeOption {
-	return func(node Node) {
-		var trailingTrivia []Trivia
-		for _, c := range trivia {
+func withTrailing(tr ...string) NodeOption {
+	return func(node node) {
+		var trailingTrivia []trivia
+		for _, c := range tr {
 			trailingTrivia = append(trailingTrivia, makeTrivia(c))
 		}
 
@@ -90,10 +90,10 @@ func withTrailing(trivia ...string) NodeOption {
 	}
 }
 
-func withLine(trivia ...string) NodeOption {
-	return func(node Node) {
-		var lineTrivia []Trivia
-		for _, t := range trivia {
+func withLine(tr ...string) NodeOption {
+	return func(node node) {
+		var lineTrivia []trivia
+		for _, t := range tr {
 			lineTrivia = append(lineTrivia, makeTrivia(t))
 		}
 
@@ -107,13 +107,13 @@ func withLine(trivia ...string) NodeOption {
 	}
 }
 
-func makeTrivia(lex string) Trivia {
-	return Trivia{
-		lexeme: lex,
+func makeTrivia(lex string) trivia {
+	return trivia{
+		Lexeme: lex,
 	}
 }
 
-func makeKV(keys []string, value Node, opts ...NodeOption) *KeyValueNode {
+func makeKV(keys []string, value node, opts ...NodeOption) *KeyValueNode {
 	kv := &KeyValueNode{
 		key:   makeKey(keys...),
 		value: value,
@@ -126,42 +126,42 @@ func makeKV(keys []string, value Node, opts ...NodeOption) *KeyValueNode {
 	return kv
 }
 
-func makeKey(keys ...string) *KeyNode {
+func makeKey(keys ...string) *keyNode {
 	var tokens []token
 	for _, key := range keys {
 		tokens = append(tokens, token{Lexeme: key})
 	}
-	return &KeyNode{
+	return &keyNode{
 		segments: keys,
 		tokens:   tokens,
 	}
 }
 
-func makeVal(value any) Node {
+func makeVal(value any) node {
 	switch v := value.(type) {
 	case float64:
-		return &FloatNode{
+		return &floatNode{
 			value: v,
 			token: token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}
 	case int64:
-		return &IntegerNode{
+		return &integerNode{
 			value: int64(v),
 			token: token{
 				Lexeme: fmt.Sprintf("%v", v),
 			},
 		}
 	case string:
-		return &StringNode{
+		return &stringNode{
 			value: v,
 			token: token{
 				Lexeme: fmt.Sprintf("\"%v\"", v),
 			},
 		}
 	case bool:
-		return &BooleanNode{
+		return &booleanNode{
 			value: v,
 			token: token{
 				Lexeme: fmt.Sprintf("%v", v),

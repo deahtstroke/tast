@@ -9,10 +9,10 @@ import (
 	"strings"
 )
 
-type Scanner struct {
+type scanner struct {
 	source []byte
 	tokens []token
-	errors []ScanError
+	errors []scanError
 
 	// Internal reading state
 	current int
@@ -21,64 +21,62 @@ type Scanner struct {
 	start   int
 }
 
-type TokenType uint32
+type tokenType uint32
 
 const (
-	_ TokenType = iota
-	COMMENT
-	LEFT_BRACKET
-	RIGHT_BRACKET
-	COMMA
-	DOT
-	MINUS
-	PLUS
-	SLASH
-	STAR
-	EQUAL
-	NEW_LINE
+	_ tokenType = iota
+	comment
+	leftBracket
+	rightBracket
+	comma
+	dot
+	minus
+	plus
+	slash
+	star
+	equal
+	newLine
 
-	BASIC_STRING
-	MULTILINE_BASIC_STRING
+	basicString
+	multilineBasicString
 
-	LITERAL_STRING
-	MULTILINE_LITERAL_STRING
+	literalString
+	multilineLiteralString
 
-	FLOAT
-	INTEGER
+	floatPoint
+	integer
 
-	BARE_KEY
-
+	bareKey
 	// Reserved keywords
-	FALSE
-	TRUE
-	INF
-	NAN
+	boolean
+	infinity
+	nan
 
-	EOF
+	eof
 )
 
 type token struct {
-	Type    TokenType
+	Type    tokenType
 	Lexeme  string
 	Literal any
 	Line    int
 	Column  int
 }
 
-func NewScanner(src []byte) *Scanner {
-	return &Scanner{
+func newScanner(src []byte) *scanner {
+	return &scanner{
 		source: src,
 		tokens: []token{},
-		errors: []ScanError{},
+		errors: []scanError{},
 	}
 }
 
-func (s *Scanner) Scan() ([]token, error) {
+func (s *scanner) scan() ([]token, error) {
 	for !s.isAtEnd() {
 		s.start = s.current
 		s.scanNext()
 	}
-	s.tokens = append(s.tokens, token{Type: EOF, Lexeme: "", Line: s.line})
+	s.tokens = append(s.tokens, token{Type: eof, Lexeme: "", Line: s.line})
 
 	if len(s.errors) > 0 {
 		errs := make([]error, len(s.errors))
@@ -91,7 +89,7 @@ func (s *Scanner) Scan() ([]token, error) {
 	return s.tokens, nil
 }
 
-func (s *Scanner) scanNext() {
+func (s *scanner) scanNext() {
 	currentChar := s.advance()
 	switch currentChar {
 	case '#':
@@ -103,43 +101,47 @@ func (s *Scanner) scanNext() {
 			s.basicString()
 		}
 	case '=':
-		s.addToken(EQUAL, "=")
+		s.addToken(equal, "=")
 	case '\n':
-		s.addToken(NEW_LINE, "\n")
+		s.addToken(newLine, "\n")
 		s.column = 0
 		s.line++
 	case '.':
-		s.addToken(DOT, ".")
+		s.addToken(dot, ".")
 	case '[':
-		s.addToken(LEFT_BRACKET, "[")
+		s.addToken(leftBracket, "[")
 	case ']':
-		s.addToken(RIGHT_BRACKET, "]")
+		s.addToken(rightBracket, "]")
 	case 'i':
 		if s.matchSequence("nf") {
-			s.addToken(INF, math.Inf(1))
+			s.addToken(infinity, math.Inf(1))
+		} else {
+			s.key()
 		}
-		s.key()
 	case 'n':
 		if s.matchSequence("an") {
-			s.addToken(NAN, math.NaN())
+			s.addToken(nan, math.NaN())
+		} else {
+			s.key()
 		}
-		s.key()
 	case 't':
 		if s.matchSequence("rue") {
-			s.addToken(TRUE, true)
+			s.addToken(boolean, true)
 			return
+		} else {
+			s.key()
 		}
-		s.key()
 	case 'f':
 		if s.matchSequence("alse") {
-			s.addToken(FALSE, false)
+			s.addToken(boolean, false)
 			return
+		} else {
+			s.key()
 		}
-		s.key()
 	case '+':
-		s.addToken(PLUS, "+")
+		s.addToken(plus, "+")
 	case '-':
-		s.addToken(MINUS, "-")
+		s.addToken(minus, "-")
 	case '\t', ' ', '\r':
 		break
 	default:
@@ -153,11 +155,11 @@ func (s *Scanner) scanNext() {
 			return
 		}
 
-		s.AddError(fmt.Sprintf("unexpected character %q", currentChar))
+		s.addError(fmt.Sprintf("unexpected character %q", currentChar))
 	}
 }
 
-func (s *Scanner) matchSequence(expected string) bool {
+func (s *scanner) matchSequence(expected string) bool {
 	for i, c := range expected {
 		if s.current+i >= len(s.source) {
 			return false
@@ -170,7 +172,7 @@ func (s *Scanner) matchSequence(expected string) bool {
 	return true
 }
 
-func (s *Scanner) advance() byte {
+func (s *scanner) advance() byte {
 	curr := s.source[s.current]
 	s.column++
 	s.current++
@@ -181,7 +183,7 @@ func (s *Scanner) advance() byte {
 // without consuming it
 //
 // Alias for peekAt0
-func (s *Scanner) peek() byte {
+func (s *scanner) peek() byte {
 	return s.peekAt(0)
 }
 
@@ -189,13 +191,13 @@ func (s *Scanner) peek() byte {
 // without consuming it
 //
 // Alias for peekAt 1
-func (s *Scanner) peekNext() byte {
+func (s *scanner) peekNext() byte {
 	return s.peekAt(1)
 }
 
 // Looks at the value of the source at the current index + an
 // arbitrary offset value without consuming it
-func (s *Scanner) peekAt(offset int) byte {
+func (s *scanner) peekAt(offset int) byte {
 	if s.current+offset >= len(s.source) {
 		return 0
 	}
@@ -203,7 +205,7 @@ func (s *Scanner) peekAt(offset int) byte {
 	return s.source[s.current+offset]
 }
 
-func (s *Scanner) addToken(tokenType TokenType, literal any) {
+func (s *scanner) addToken(tokenType tokenType, literal any) {
 	lexeme := string(s.source[s.start:s.current])
 	t := token{
 		Line:    s.line,
@@ -217,11 +219,11 @@ func (s *Scanner) addToken(tokenType TokenType, literal any) {
 
 // Checks to see if the current pointer is off bounds from the
 // length of the source byte array
-func (s *Scanner) isAtEnd() bool {
+func (s *scanner) isAtEnd() bool {
 	return s.current >= len(s.source)
 }
 
-func (s *Scanner) comment() {
+func (s *scanner) comment() {
 	for s.peek() != '\n' && !s.isAtEnd() {
 		s.advance()
 	}
@@ -229,10 +231,10 @@ func (s *Scanner) comment() {
 
 	// make up for finding a newline character
 	s.line++
-	s.addToken(COMMENT, commentValue)
+	s.addToken(comment, commentValue)
 }
 
-func (s *Scanner) number() {
+func (s *scanner) number() {
 	for !s.isAtEnd() && (isDigit(s.peek()) || s.isValidUnderscore()) {
 		s.advance()
 	}
@@ -255,26 +257,26 @@ func (s *Scanner) number() {
 
 	if isFloatingPoint {
 		floatVal, _ := strconv.ParseFloat(cleaned, 64)
-		s.addToken(FLOAT, floatVal)
+		s.addToken(floatPoint, floatVal)
 	} else {
 		intVal, err := strconv.ParseInt(cleaned, 10, 64)
 		if err != nil {
 			log.Printf("err: %v", err)
 		}
-		s.addToken(INTEGER, intVal)
+		s.addToken(integer, intVal)
 	}
 }
 
-func (s *Scanner) key() {
+func (s *scanner) key() {
 	for !s.isAtEnd() && isKey(s.peek()) {
 		s.advance()
 	}
 
 	lexeme := s.source[s.start:s.current]
-	s.addToken(BARE_KEY, string(lexeme))
+	s.addToken(bareKey, string(lexeme))
 }
 
-func (s *Scanner) multilineBasicString() {
+func (s *scanner) multilineBasicString() {
 	for !s.isAtEnd() && !s.isMultilineClosing() {
 		if s.peek() == '\n' {
 			s.line++
@@ -285,7 +287,7 @@ func (s *Scanner) multilineBasicString() {
 
 	// Unterminated multilne string
 	if s.isAtEnd() {
-		s.AddError("Unterminated multiline basic string")
+		s.addError("Unterminated multiline basic string")
 		return
 	}
 
@@ -304,11 +306,11 @@ func (s *Scanner) multilineBasicString() {
 		}
 	}
 
-	s.addToken(MULTILINE_BASIC_STRING, string(strValue))
+	s.addToken(multilineBasicString, string(strValue))
 }
 
-func (s *Scanner) AddError(msg string) {
-	s.errors = append(s.errors, ScanError{
+func (s *scanner) addError(msg string) {
+	s.errors = append(s.errors, scanError{
 		Line:    s.line,
 		Column:  s.column,
 		Offset:  s.current,
@@ -316,7 +318,7 @@ func (s *Scanner) AddError(msg string) {
 	})
 }
 
-func (s *Scanner) basicString() {
+func (s *scanner) basicString() {
 	for !s.isAtEnd() && s.peek() != '"' {
 		if s.peek() == '\n' {
 			s.line++
@@ -325,7 +327,7 @@ func (s *Scanner) basicString() {
 	}
 
 	if s.isAtEnd() {
-		s.AddError("Unterminated basic string")
+		s.addError("Unterminated basic string")
 		return
 	}
 
@@ -335,10 +337,10 @@ func (s *Scanner) basicString() {
 	// literal = just the content between the quotes
 	strValue := s.source[s.start+1 : s.current-1]
 
-	s.addToken(BASIC_STRING, string(strValue))
+	s.addToken(basicString, string(strValue))
 }
 
-func (s *Scanner) isMultlineStart() bool {
+func (s *scanner) isMultlineStart() bool {
 	if s.isAtEnd() {
 		return false
 	}
@@ -346,7 +348,7 @@ func (s *Scanner) isMultlineStart() bool {
 	return s.peek() == '"' && s.peekNext() == '"'
 }
 
-func (s *Scanner) isMultilineClosing() bool {
+func (s *scanner) isMultilineClosing() bool {
 	if s.isAtEnd() {
 		return false
 	}
@@ -356,7 +358,7 @@ func (s *Scanner) isMultilineClosing() bool {
 
 // Valid underscore means that it should be proceded by another digit value
 // otherwise is not valid
-func (s *Scanner) isValidUnderscore() bool {
+func (s *scanner) isValidUnderscore() bool {
 	return s.peek() == '_' && isDigit(s.peekNext())
 }
 

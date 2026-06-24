@@ -4,16 +4,16 @@ import (
 	"strings"
 )
 
-type Printer struct {
+type printer struct {
 	buf strings.Builder
 }
 
-func NewPrinter() *Printer {
-	return &Printer{}
+func newPrinter() *printer {
+	return &printer{}
 }
 
-func (p *Printer) print(doc *Document) (string, error) {
-	var prev Node
+func (p *printer) print(doc *Document) (string, error) {
+	var prev node
 	for _, node := range doc.content {
 		if prev != nil {
 			_, currIsTable := node.(*TableNode)
@@ -23,7 +23,7 @@ func (p *Printer) print(doc *Document) (string, error) {
 			}
 		}
 
-		if err := node.Accept(p); err != nil {
+		if err := node.accept(p); err != nil {
 			return "", err
 		}
 
@@ -32,58 +32,58 @@ func (p *Printer) print(doc *Document) (string, error) {
 	return p.buf.String(), nil
 }
 
-func (p *Printer) VisitTableNode(n *TableNode) error {
+func (p *printer) visitTableNode(n *TableNode) error {
 	for _, comment := range n.leadingTrivia {
-		p.buf.WriteString(comment.lexeme)
+		p.buf.WriteString(comment.Lexeme)
 	}
 
 	p.buf.WriteString("[")
-	n.key.Accept(p)
+	n.key.accept(p)
 	p.buf.WriteString("]")
 
 	for _, trivia := range n.lineTrivia {
-		p.buf.WriteString(trivia.lexeme)
+		p.buf.WriteString(trivia.Lexeme)
 	}
 
 	for _, c := range n.children {
-		if err := c.Accept(p); err != nil {
+		if err := c.accept(p); err != nil {
 			return err
 		}
 	}
 
 	for _, trivia := range n.trailingTrivia {
-		p.buf.WriteString(trivia.lexeme)
+		p.buf.WriteString(trivia.Lexeme)
 	}
 
 	return nil
 }
 
-func (p *Printer) VisitKeyValueNode(n *KeyValueNode) error {
-	for _, trivia := range n.leadingTrivia {
-		p.buf.WriteString(trivia.lexeme)
+func (p *printer) visitKeyValueNode(n *KeyValueNode) error {
+	for _, t := range n.leadingTrivia {
+		p.buf.WriteString(t.Lexeme)
 	}
 
-	if err := n.key.Accept(p); err != nil {
+	if err := n.key.accept(p); err != nil {
 		return err
 	}
 
 	p.buf.WriteString(" = ")
 
-	if err := n.value.Accept(p); err != nil {
+	if err := n.value.accept(p); err != nil {
 		return err
 	}
 
 	for _, trivia := range n.lineTrivia {
-		p.buf.WriteString(trivia.lexeme)
+		p.buf.WriteString(trivia.Lexeme)
 	}
 
 	for _, trivia := range n.trailingTrivia {
-		p.buf.WriteString(trivia.lexeme)
+		p.buf.WriteString(trivia.Lexeme)
 	}
 	return nil
 }
 
-func (p *Printer) VisitKeyNode(n *KeyNode) error {
+func (p *printer) visitKeyNode(n *keyNode) error {
 	lexemes := []string{}
 	for _, token := range n.tokens {
 		lexemes = append(lexemes, token.Lexeme)
@@ -92,22 +92,22 @@ func (p *Printer) VisitKeyNode(n *KeyNode) error {
 	return nil
 }
 
-func (p *Printer) VisitStringNode(n *StringNode) error {
+func (p *printer) visitStringNode(n *stringNode) error {
 	p.buf.WriteString(n.token.Lexeme)
 	return nil
 }
 
-func (p *Printer) VisitIntegerNode(n *IntegerNode) error {
+func (p *printer) visitIntegerNode(n *integerNode) error {
 	p.buf.WriteString(n.token.Lexeme)
 	return nil
 }
 
-func (p *Printer) VisitFloatNode(n *FloatNode) error {
+func (p *printer) visitFloatNode(n *floatNode) error {
 	p.buf.WriteString(n.token.Lexeme)
 	return nil
 }
 
-func (p *Printer) VisitBooleanNode(n *BooleanNode) error {
+func (p *printer) visitBooleanNode(n *booleanNode) error {
 	p.buf.WriteString(n.token.Lexeme)
 	return nil
 }

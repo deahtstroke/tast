@@ -8,29 +8,29 @@ import (
 	"strings"
 )
 
-type Parser struct {
+type parser struct {
 	tokens  []token
 	current int
 
-	errors        []ParseError
+	errors        []parseError
 	keys          map[string]struct{}
 	tables        map[string]struct{}
-	pendingTrivia []Trivia
+	pendingTrivia []trivia
 }
 
-func NewParser(tokens []token) *Parser {
-	return &Parser{
+func newParser(tokens []token) *parser {
+	return &parser{
 		tokens: tokens,
 		keys:   make(map[string]struct{}),
 		tables: make(map[string]struct{}),
 	}
 }
 
-// Parse() starts the parsing process of iterating the tokens assigned
-// to the parser struct and create a TOML-Document
+// parse() starts the parsing process of iterating the tokens assigned
+// to the parse struct and create a TOML-Document
 // In the case where there are errors while parsing, the accumulated errors
 // will be returned in the slice of ParseErrors
-func (p *Parser) Parse() (*Document, []ParseError) {
+func (p *parser) parse() (*Document, []parseError) {
 	document := &Document{}
 	for !p.isAtEnd() {
 		node := p.nextNode()
@@ -43,22 +43,22 @@ func (p *Parser) Parse() (*Document, []ParseError) {
 	return document, p.errors
 }
 
-func (p *Parser) registerTable(table *KeyNode) error {
+func (p *parser) registerTable(table *keyNode) error {
 	tableKey := strings.Join(table.segments, ".")
 	if _, exists := p.tables[tableKey]; exists {
 		msg := fmt.Sprintf("Duplicate table exists with signature %s", tableKey)
-		p.addErrorNoToken(msg, ErrDuplicateTable)
+		p.addErrorNoToken(msg, errDuplicateTable)
 	}
 
 	p.tables[tableKey] = struct{}{}
 	return nil
 }
 
-func (p *Parser) registerKey(key *KeyNode) error {
+func (p *parser) registerKey(key *keyNode) error {
 	literalKey := strings.Join(key.segments, ".")
 	if _, exists := p.keys[literalKey]; exists {
 		msg := fmt.Sprintf("Duplicate key exists with signature %s", literalKey)
-		p.addErrorNoToken(msg, ErrDuplicateKey)
+		p.addErrorNoToken(msg, errDuplicateKey)
 		return errors.New(msg)
 	}
 
@@ -66,7 +66,7 @@ func (p *Parser) registerKey(key *KeyNode) error {
 	return nil
 }
 
-func (p *Parser) handleOrphanedTrivia(document *Document) {
+func (p *parser) handleOrphanedTrivia(document *Document) {
 	if p.pendingTrivia != nil {
 		lastNode := document.content[len(document.content)-1]
 		switch n := lastNode.(type) {
@@ -79,12 +79,12 @@ func (p *Parser) handleOrphanedTrivia(document *Document) {
 	}
 }
 
-func (p *Parser) nextNode() Node {
+func (p *parser) nextNode() node {
 	// Accumulate all trivia before appending to next node
 	leading := p.getLeadingTrivia()
 	switch {
-	case p.MatchAny(LEFT_BRACKET):
-		node := p.Table()
+	case p.matchAny(leftBracket):
+		node := p.table()
 		if node == nil {
 			p.synchronize()
 			return nil
@@ -92,8 +92,8 @@ func (p *Parser) nextNode() Node {
 
 		node.leadingTrivia = leading
 		return node
-	case p.MatchAny(BARE_KEY, BASIC_STRING, LITERAL_STRING):
-		node := p.KeyValue()
+	case p.matchAny(bareKey, basicString, literalString):
+		node := p.keyValue()
 		if node == nil {
 			p.synchronize()
 			return nil
@@ -107,40 +107,40 @@ func (p *Parser) nextNode() Node {
 	}
 }
 
-func (p *Parser) getLeadingTrivia() []Trivia {
-	var trivia []Trivia
+func (p *parser) getLeadingTrivia() []trivia {
+	var tr []trivia
 
 	// Check first if there's orphaned trivia to be
 	// processed from earlier tables
 	if p.pendingTrivia != nil {
-		trivia = p.pendingTrivia
+		tr = p.pendingTrivia
 		p.pendingTrivia = nil
-		return trivia
+		return tr
 	}
 
 	for !p.isAtEnd() {
-		if p.check(NEW_LINE) {
+		if p.check(newLine) {
 			newLine := p.advance()
-			trivia = append(trivia, Trivia{lexeme: newLine.Lexeme, Type: NewLineTrivia})
+			tr = append(tr, trivia{Lexeme: newLine.Lexeme, Type: newLineTrivia})
 			continue
 		}
 
-		if p.check(COMMENT) {
+		if p.check(comment) {
 			comment := p.advance()
-			trivia = append(trivia, Trivia{lexeme: comment.Lexeme, Type: CommentTrivia})
+			tr = append(tr, trivia{Lexeme: comment.Lexeme, Type: commentTrivia})
 			continue
 		}
 
 		break
 	}
-	return trivia
+	return tr
 }
 
-func (p *Parser) synchronize() {
+func (p *parser) synchronize() {
 	p.advance() // skip the current token
 
 	for !p.isAtEnd() {
-		if p.previous().Type == NEW_LINE {
+		if p.previous().Type == newLine {
 			return
 		}
 
@@ -148,17 +148,17 @@ func (p *Parser) synchronize() {
 	}
 }
 
-func (p *Parser) addError(token token, msg string, code ParseErrorCode) {
-	p.errors = append(p.errors, ParseError{Token: token, Message: msg, Code: code})
+func (p *parser) addError(token token, msg string, code parserErrorCode) {
+	p.errors = append(p.errors, parseError{Token: token, Message: msg, Code: code})
 }
 
-func (p *Parser) addErrorNoToken(msg string, code ParseErrorCode) {
+func (p *parser) addErrorNoToken(msg string, code parserErrorCode) {
 	p.addError(token{}, msg, code)
 }
 
-func (p *Parser) KeyValue() *KeyValueNode {
+func (p *parser) keyValue() *KeyValueNode {
 	keyValueNode := &KeyValueNode{}
-	key := p.Key()
+	key := p.key()
 	if key == nil {
 		return nil
 	}
@@ -168,22 +168,22 @@ func (p *Parser) KeyValue() *KeyValueNode {
 		return nil
 	}
 
-	if !p.MatchAny(EQUAL) {
-		p.addError(p.peek(), "expecting assignment operator '=' after key", ErrMissingAssignmentAfterKey)
+	if !p.matchAny(equal) {
+		p.addError(p.peek(), "expecting assignment operator '=' after key", errMissingAssignmentAfterKey)
 		return nil
 	}
 
 	value := p.value()
 	if value == nil {
-		p.addError(p.peek(), "unspecified value for after key", ErrUnspecifiedValueForKey)
+		p.addError(p.peek(), "unspecified value for after key", errUnspecifiedValueForKey)
 		return nil
 	}
 
 	// Check to see if there was a new line after the value
 	lineTrivia := p.getLineTrivia()
-	hasNewLine := len(lineTrivia) > 0 && lineTrivia[len(lineTrivia)-1].Type == NewLineTrivia
+	hasNewLine := len(lineTrivia) > 0 && lineTrivia[len(lineTrivia)-1].Type == newLineTrivia
 	if !hasNewLine && !p.isAtEnd() {
-		p.addError(p.peek(), "expected new line after value", ErrMissingNewLine)
+		p.addError(p.peek(), "expected new line after value", errMissingNewLine)
 		return nil
 	}
 
@@ -193,34 +193,32 @@ func (p *Parser) KeyValue() *KeyValueNode {
 	return keyValueNode
 }
 
-func (p *Parser) value() Node {
-	if p.MatchAny(MINUS, PLUS) {
+func (p *parser) value() node {
+	if p.matchAny(minus, plus) {
 		operator := p.previous().Type
 		switch {
-		case p.MatchAny(FLOAT):
+		case p.matchAny(floatPoint):
 			return createFloatNode(p, operator)
-		case p.MatchAny(INTEGER):
+		case p.matchAny(integer):
 			return createIntNode(p, operator)
-		case p.MatchAny(INF):
+		case p.matchAny(infinity):
 			return createInfinityNode(p, operator)
 		default:
-			p.addError(p.peek(), "Unable to recognize token that follows -/+", ErrUnrecognizedToken)
+			p.addError(p.peek(), "Unable to recognize token that follows -/+", errUnrecognizedToken)
 			return nil
 		}
 	}
 
 	switch {
-	case p.MatchAny(FLOAT):
+	case p.matchAny(floatPoint):
 		return createFloatNode(p, 0)
-	case p.MatchAny(INTEGER):
+	case p.matchAny(integer):
 		return createIntNode(p, 0)
-	case p.MatchAny(FALSE):
-		return createBoolNode(p, FALSE)
-	case p.MatchAny(TRUE):
-		return createBoolNode(p, TRUE)
-	case p.MatchAny(INF):
+	case p.matchAny(boolean):
+		return createBooleanNode(p)
+	case p.matchAny(infinity):
 		return createInfinityNode(p, 0)
-	case p.MatchAny(BASIC_STRING, MULTILINE_BASIC_STRING):
+	case p.matchAny(basicString, multilineBasicString):
 		return createStringNode(p)
 	default:
 	}
@@ -228,69 +226,74 @@ func (p *Parser) value() Node {
 	return nil
 }
 
-func createStringNode(p *Parser) Node {
+func createStringNode(p *parser) node {
 	val, ok := p.previous().Literal.(string)
 	if !ok {
-		p.addError(p.peek(), "Unable to parse value as string", ErrParsingString)
+		p.addError(p.peek(), "Unable to parse value as string", errParsingString)
 		return nil
 	}
 
-	return &StringNode{
+	return &stringNode{
 		value: val,
 		token: p.previous(),
 	}
 }
 
-func createBoolNode(p *Parser, b TokenType) Node {
-	return &BooleanNode{
-		value: b == TRUE,
-		token: p.previous(),
-	}
-}
-
-func createInfinityNode(p *Parser, operator TokenType) Node {
+func createInfinityNode(p *parser, operator tokenType) node {
 	val := math.Inf(1)
-	if operator == MINUS {
+	if operator == minus {
 		val = math.Inf(-1)
 	}
 
 	// According to IEEE 754, inf should be treated as float64
 	// aka, a FloatNode in tast-speak
-	return &FloatNode{
+	return &floatNode{
 		value: val,
 		token: p.previous(),
 	}
 }
 
-func createIntNode(p *Parser, operator TokenType) Node {
+func createIntNode(p *parser, operator tokenType) node {
 	val, ok := p.previous().Literal.(int64)
 	if !ok {
-		p.addError(p.peek(), "Unable to parse value as int64", ErrParsingInt)
+		p.addError(p.peek(), "Unable to parse value as int64", errParsingInt)
 		return nil
 	}
 
-	if operator == MINUS {
+	if operator == minus {
 		val = -val
 	}
 
-	return &IntegerNode{
+	return &integerNode{
 		value: val,
 		token: p.previous(),
 	}
 }
 
-func createFloatNode(p *Parser, operator TokenType) Node {
+func createFloatNode(p *parser, operator tokenType) node {
 	val, ok := p.previous().Literal.(float64)
 	if !ok {
-		p.addError(p.peek(), "Unable to parse value to float64", ErrParsingFloat)
+		p.addError(p.peek(), "Unable to parse value to float64", errParsingFloat)
 		return nil
 	}
 
-	if operator == MINUS {
+	if operator == minus {
 		val = -val
 	}
 
-	return &FloatNode{
+	return &floatNode{
+		value: val,
+		token: p.previous(),
+	}
+}
+
+func createBooleanNode(p *parser) node {
+	val, ok := p.previous().Literal.(bool)
+	if !ok {
+		p.addError(p.peek(), "Unable to parse value to bool", errParsingBool)
+	}
+
+	return &booleanNode{
 		value: val,
 		token: p.previous(),
 	}
@@ -298,14 +301,14 @@ func createFloatNode(p *Parser, operator TokenType) Node {
 
 // Parse a TOML table which follows the grammar rule:
 // table -> LEFT_BRACKET  RIGHT_BRACKET
-func (p *Parser) Table() *TableNode {
+func (p *parser) table() *TableNode {
 	tableNode := &TableNode{}
-	if !p.MatchAny(BARE_KEY, BASIC_STRING) {
-		p.addError(p.peek(), "Expected a key after left-bracket", ErrMalformedTableKey)
+	if !p.matchAny(bareKey, basicString) {
+		p.addError(p.peek(), "Expected a key after left-bracket", errMalformedTableKey)
 		return nil
 	}
 
-	key := p.Key()
+	key := p.key()
 	if key == nil {
 		return nil
 	}
@@ -315,17 +318,17 @@ func (p *Parser) Table() *TableNode {
 	}
 	tableNode.key = key
 
-	if !p.MatchAny(RIGHT_BRACKET) {
-		p.addError(p.peek(), "Expecting closing bracket ']' after key definition", ErrMissingClosingBracket)
+	if !p.matchAny(rightBracket) {
+		p.addError(p.peek(), "Expecting closing bracket ']' after key definition", errMissingClosingBracket)
 		return nil
 	}
 
 	// Check for in-line trivia
 	// Break out of loop once we find newline or there are none, in that case it'll error
 	lineTrivia := p.getLineTrivia()
-	hasNewLine := len(lineTrivia) > 0 && lineTrivia[len(lineTrivia)-1].Type == NewLineTrivia
+	hasNewLine := len(lineTrivia) > 0 && lineTrivia[len(lineTrivia)-1].Type == newLineTrivia
 	if !hasNewLine && !p.isAtEnd() {
-		p.addError(p.peek(), "Expected newline character after table header", ErrMissingNewLine)
+		p.addError(p.peek(), "Expected newline character after table header", errMissingNewLine)
 		return nil
 	}
 
@@ -337,19 +340,19 @@ func (p *Parser) Table() *TableNode {
 		p.keys = outer
 	}()
 
-	var children []Node
-	var pendingTrivia []Trivia
+	var children []node
+	var pendingTrivia []trivia
 
 	// Process children KV nodes until next table
-	for !p.isAtEnd() && !p.check(LEFT_BRACKET) {
+	for !p.isAtEnd() && !p.check(leftBracket) {
 		pendingTrivia = p.getLeadingTrivia()
-		if p.isAtEnd() || p.check(LEFT_BRACKET) {
+		if p.isAtEnd() || p.check(leftBracket) {
 			break
 		}
 
 		// Consume the first part of the key-value
-		if p.MatchAny(BARE_KEY, BASIC_STRING, LITERAL_STRING) {
-			kv := p.KeyValue()
+		if p.matchAny(bareKey, basicString, literalString) {
+			kv := p.keyValue()
 
 			if kv != nil {
 				kv.leadingTrivia = pendingTrivia
@@ -370,18 +373,18 @@ func (p *Parser) Table() *TableNode {
 	return tableNode
 }
 
-func (p *Parser) getLineTrivia() []Trivia {
-	var lineTrivia []Trivia
+func (p *parser) getLineTrivia() []trivia {
+	var lineTrivia []trivia
 	for !p.isAtEnd() {
-		if p.check(COMMENT) {
+		if p.check(comment) {
 			comment := p.advance()
-			lineTrivia = append(lineTrivia, Trivia{lexeme: comment.Lexeme, Type: CommentTrivia})
+			lineTrivia = append(lineTrivia, trivia{Lexeme: comment.Lexeme, Type: commentTrivia})
 			continue
 		}
 
-		if p.check(NEW_LINE) {
+		if p.check(newLine) {
 			newLine := p.advance()
-			lineTrivia = append(lineTrivia, Trivia{lexeme: newLine.Lexeme, Type: NewLineTrivia})
+			lineTrivia = append(lineTrivia, trivia{Lexeme: newLine.Lexeme, Type: newLineTrivia})
 			break
 		}
 
@@ -392,23 +395,23 @@ func (p *Parser) getLineTrivia() []Trivia {
 
 // Parse a TOML key which follows the grammar rule:
 // key -> (BARE_KEY | STRING) (DOT (BARE_KEY | STRING))*
-func (p *Parser) Key() *KeyNode {
+func (p *parser) key() *keyNode {
 	curr := p.previous()
 
 	literal, ok := curr.Literal.(string)
 	if !ok {
-		p.addError(p.peek(), fmt.Sprintf("Unable to convert token literal %s to string", curr.Lexeme), ErrParsingString)
+		p.addError(p.peek(), fmt.Sprintf("Unable to convert token literal %s to string", curr.Lexeme), errParsingString)
 		return nil
 	}
 
-	node := &KeyNode{
+	node := &keyNode{
 		segments: []string{literal},
 		tokens:   []token{curr},
 	}
 
-	for p.MatchAny(DOT) {
-		if !p.MatchAny(BASIC_STRING, BARE_KEY, LITERAL_STRING) {
-			p.addError(p.peek(), "Expected string or bare key after dot '.'", ErrNoKeyAfterDot)
+	for p.matchAny(dot) {
+		if !p.matchAny(basicString, bareKey, literalString) {
+			p.addError(p.peek(), "Expected string or bare key after dot '.'", errNoKeyAfterDot)
 			return nil
 		}
 
@@ -420,7 +423,7 @@ func (p *Parser) Key() *KeyNode {
 	return node
 }
 
-func (p *Parser) MatchAny(types ...TokenType) bool {
+func (p *parser) matchAny(types ...tokenType) bool {
 	if slices.ContainsFunc(types, p.check) {
 		p.advance()
 		return true
@@ -430,28 +433,28 @@ func (p *Parser) MatchAny(types ...TokenType) bool {
 }
 
 // Checks the current token for the specific type without consuming it
-func (p *Parser) check(token TokenType) bool {
+func (p *parser) check(token tokenType) bool {
 	if p.isAtEnd() {
 		return false
 	}
 	return p.peek().Type == token
 }
 
-func (p *Parser) advance() token {
+func (p *parser) advance() token {
 	if !p.isAtEnd() {
 		p.current++
 	}
 	return p.previous()
 }
 
-func (p *Parser) peek() token {
+func (p *parser) peek() token {
 	return p.tokens[p.current]
 }
 
-func (p *Parser) isAtEnd() bool {
-	return p.peek().Type == EOF
+func (p *parser) isAtEnd() bool {
+	return p.peek().Type == eof
 }
 
-func (p *Parser) previous() token {
+func (p *parser) previous() token {
 	return p.tokens[p.current-1]
 }
