@@ -13,21 +13,10 @@ func newPrinter() *printer {
 }
 
 func (p *printer) print(doc *Document) (string, error) {
-	var prev node
 	for _, node := range doc.content {
-		if prev != nil {
-			_, currIsTable := node.(*TableNode)
-			_, prevIsKV := prev.(*KeyValueNode)
-			if currIsTable && prevIsKV {
-				p.buf.WriteString("\n")
-			}
-		}
-
 		if err := node.accept(p); err != nil {
 			return "", err
 		}
-
-		prev = node
 	}
 	return p.buf.String(), nil
 }
