@@ -12,7 +12,7 @@ func Test_PrinterSuccess(t *testing.T) {
 		makeKV([]string{"output.errors"}, makeVal("stderr"), withLine("\n")),
 		makeKV([]string{"output.\"logs\""}, makeVal("stdout"), withLine("\n")),
 		makeTable(makeKey("database", "rivenbot"),
-			withLeading("# Database details for Rivenbot", "\n", "# Dev only", "\n"), withLine("\n")),
+			withLeading("\n", "# Database details for Rivenbot", "\n", "# Dev only", "\n"), withLine("\n")),
 		makeKV([]string{"url"}, makeVal("postgres://localhost:5432/rivenbot"), withLine("\n")),
 		makeKV([]string{"username"}, makeVal("daniel")),
 	)
