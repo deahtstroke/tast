@@ -110,6 +110,9 @@ type TableNode struct {
 
 	// tokens that make up the table-key
 	tokens []token
+
+	// if table was created from a dotted key
+	isImplicit bool
 }
 
 func (n *TableNode) accept(v visitor) error {

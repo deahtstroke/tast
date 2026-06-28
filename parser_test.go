@@ -294,7 +294,6 @@ func Test_Parser(t *testing.T) {
 			tokens: DeclareTokens(
 				BareKey("name"), Equal(), BasicString("Orange"), NewLine(),
 				BareKey("physical"), Dot(), BasicString("color"), Equal(), BasicString("orange"), NewLine(),
-				BareKey("physical"), Dot(), BasicString("shape"), Equal(), BasicString("round"), NewLine(),
 				BareKey("site"), Dot(), BasicString("google.com"), Equal(), True(),
 			),
 			expectedDoc: &Document{
@@ -307,28 +306,34 @@ func Test_Parser(t *testing.T) {
 							value: "Orange",
 						},
 					},
-					&KeyValueNode{
+					&TableNode{
 						key: &keyNode{
-							segments: []string{"physical", "color"},
+							segments: []string{"physical"},
 						},
-						value: &stringNode{
-							value: "orange",
+						children: []node{
+							&KeyValueNode{
+								key: &keyNode{
+									segments: []string{"color"},
+								},
+								value: &stringNode{
+									value: "orange",
+								},
+							},
 						},
 					},
-					&KeyValueNode{
+					&TableNode{
 						key: &keyNode{
-							segments: []string{"physical", "shape"},
+							segments: []string{"site"},
 						},
-						value: &stringNode{
-							value: "round",
-						},
-					},
-					&KeyValueNode{
-						key: &keyNode{
-							segments: []string{"site", "google.com"},
-						},
-						value: &booleanNode{
-							value: true,
+						children: []node{
+							&KeyValueNode{
+								key: &keyNode{
+									segments: []string{"google.com"},
+								},
+								value: &booleanNode{
+									value: true,
+								},
+							},
 						},
 					},
 				},

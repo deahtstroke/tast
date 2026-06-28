@@ -5,7 +5,8 @@ import (
 )
 
 type printer struct {
-	buf strings.Builder
+	buf    strings.Builder
+	prefix string
 }
 
 func newPrinter() *printer {
@@ -24,6 +25,19 @@ func (p *printer) print(doc *Document) (string, error) {
 func (p *printer) visitTableNode(n *TableNode) error {
 	for _, comment := range n.leadingTrivia {
 		p.buf.WriteString(comment.Lexeme)
+	}
+
+	if n.isImplicit {
+		previous := p.prefix
+		p.prefix += n.key.segments[0] + "."
+		for _, child := range n.children {
+			if err := child.accept(p); err != nil {
+				return err
+			}
+		}
+
+		p.prefix = previous
+		return nil
 	}
 
 	p.buf.WriteString("[")
@@ -51,6 +65,9 @@ func (p *printer) visitKeyValueNode(n *KeyValueNode) error {
 	for _, t := range n.leadingTrivia {
 		p.buf.WriteString(t.Lexeme)
 	}
+
+	// dotted-key prefix (if there is one)
+	p.buf.WriteString(p.prefix)
 
 	if err := n.key.accept(p); err != nil {
 		return err

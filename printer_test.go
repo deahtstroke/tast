@@ -9,12 +9,16 @@ import (
 func Test_PrinterSuccess(t *testing.T) {
 	doc := makeDoc(
 		makeKV([]string{"concurrency"}, makeVal(int64(100)), withLine("\n")),
-		makeKV([]string{"output.errors"}, makeVal("stderr"), withLine("\n")),
-		makeKV([]string{"output.\"logs\""}, makeVal("stdout"), withLine("\n")),
+		makeTable(makeKey("output"), true, []node{makeKV([]string{"errors"}, makeVal("stderr"), withLine("\n"))}, []NodeOption{}),
+		makeTable(makeKey("output"), true, []node{makeKV([]string{"\"logs\""}, makeVal("stdout"), withLine("\n"))}, []NodeOption{}),
+		makeTable(makeKey("input"), true, []node{makeTable(makeKey("src"), true, []node{makeKV([]string{"compress"}, makeVal("zstd"))}, []NodeOption{})}, []NodeOption{}),
 		makeTable(makeKey("database", "rivenbot"),
-			withLeading("\n", "# Database details for Rivenbot", "\n", "# Dev only", "\n"), withLine("\n")),
-		makeKV([]string{"url"}, makeVal("postgres://localhost:5432/rivenbot"), withLine("\n")),
-		makeKV([]string{"username"}, makeVal("daniel")),
+			false,
+			[]node{
+				makeKV([]string{"url"}, makeVal("postgres://localhost:5432/rivenbot"), withLine("\n")),
+				makeKV([]string{"username"}, makeVal("daniel")),
+			},
+			[]NodeOption{withLeading("\n", "# Database details for Rivenbot", "\n", "# Dev only", "\n"), withLine("\n")}),
 	)
 
 	got, err := newPrinter().print(doc)
@@ -25,6 +29,7 @@ func Test_PrinterSuccess(t *testing.T) {
 	expected := `concurrency = 100
 output.errors = "stderr"
 output."logs" = "stdout"
+input.src.compress = "zstd"
 
 # Database details for Rivenbot
 # Dev only
@@ -43,10 +48,12 @@ func makeDoc(nodes ...node) *Document {
 
 type NodeOption func(node)
 
-func makeTable(keyNode *keyNode, opts ...NodeOption) *TableNode {
+func makeTable(keyNode *keyNode, implicit bool, children []node, opts []NodeOption) *TableNode {
 	table := &TableNode{
-		key:    keyNode,
-		tokens: keyNode.tokens,
+		key:        keyNode,
+		isImplicit: implicit,
+		tokens:     keyNode.tokens,
+		children:   children,
 	}
 
 	for _, opt := range opts {

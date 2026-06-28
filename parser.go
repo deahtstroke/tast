@@ -93,13 +93,20 @@ func (p *parser) nextNode() node {
 		node.leadingTrivia = leading
 		return node
 	case p.matchAny(bareKey, basicString, literalString):
-		node := p.keyValue()
+		node := p.keyValueOrImplicitTable()
 		if node == nil {
 			p.synchronize()
 			return nil
 		}
 
-		node.leadingTrivia = leading
+		switch n := node.(type) {
+		case *KeyValueNode:
+			n.leadingTrivia = leading
+		case *TableNode:
+			n.leadingTrivia = leading
+		default:
+		}
+
 		return node
 	default:
 		p.advance()
@@ -156,13 +163,11 @@ func (p *parser) addErrorNoToken(msg string, code parserErrorCode) {
 	p.addError(token{}, msg, code)
 }
 
-func (p *parser) keyValue() *KeyValueNode {
-	keyValueNode := &KeyValueNode{}
+func (p *parser) keyValueOrImplicitTable() node {
 	key := p.key()
 	if key == nil {
 		return nil
 	}
-	keyValueNode.key = key
 
 	if err := p.registerKey(key); err != nil {
 		return nil
@@ -187,10 +192,44 @@ func (p *parser) keyValue() *KeyValueNode {
 		return nil
 	}
 
-	keyValueNode.value = value
-	keyValueNode.lineTrivia = lineTrivia
+	// Implicit table
+	if len(key.segments) == 1 {
+		return &KeyValueNode{
+			key:        key,
+			value:      value,
+			lineTrivia: lineTrivia,
+		}
+	}
 
-	return keyValueNode
+	return p.buildImplicitTable(key, value, lineTrivia)
+}
+
+func (p *parser) buildImplicitTable(key *keyNode, value node, lineTrivia []trivia) node {
+	segments := key.segments
+	tokens := key.tokens
+
+	inner := &KeyValueNode{
+		key: &keyNode{
+			segments: []string{segments[len(segments)-1]},
+			tokens:   []token{tokens[len(tokens)-1]},
+		},
+		value:      value,
+		lineTrivia: lineTrivia,
+	}
+
+	var current node = inner
+	for i := len(segments) - 2; i >= 0; i-- {
+		current = &TableNode{
+			key: &keyNode{
+				segments: []string{segments[i]},
+				tokens:   []token{tokens[i]},
+			},
+			children:   []node{current},
+			isImplicit: true,
+		}
+	}
+
+	return current
 }
 
 func (p *parser) value() node {
@@ -352,13 +391,22 @@ func (p *parser) table() *TableNode {
 
 		// Consume the first part of the key-value
 		if p.matchAny(bareKey, basicString, literalString) {
-			kv := p.keyValue()
+			createdNode := p.keyValueOrImplicitTable()
 
-			if kv != nil {
-				kv.leadingTrivia = pendingTrivia
+			if createdNode != nil {
+
+				switch n := createdNode.(type) {
+				case *KeyValueNode:
+					n.leadingTrivia = pendingTrivia
+				case *TableNode:
+					n.leadingTrivia = pendingTrivia
+				default:
+					p.addError(p.peek(), fmt.Sprintf("Unexpected node of type %T", n), errUnrecognizedToken)
+					return nil
+				}
+
 				pendingTrivia = nil
-
-				children = append(children, kv)
+				children = append(children, createdNode)
 			} else {
 				p.synchronize()
 				break
