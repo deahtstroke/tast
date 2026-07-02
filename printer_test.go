@@ -11,7 +11,6 @@ func Test_PrinterSuccess(t *testing.T) {
 		makeKV([]string{"concurrency"}, makeVal(int64(100)), withLine("\n")),
 		makeTable(makeKey("output"), true, []node{makeKV([]string{"errors"}, makeVal("stderr"), withLine("\n"))}, []NodeOption{}),
 		makeTable(makeKey("output"), true, []node{makeKV([]string{"\"logs\""}, makeVal("stdout"), withLine("\n"))}, []NodeOption{}),
-		makeTable(makeKey("input"), true, []node{makeTable(makeKey("src"), true, []node{makeKV([]string{"compress"}, makeVal("zstd"))}, []NodeOption{})}, []NodeOption{}),
 		makeTable(makeKey("database", "rivenbot"),
 			false,
 			[]node{
@@ -29,7 +28,6 @@ func Test_PrinterSuccess(t *testing.T) {
 	expected := `concurrency = 100
 output.errors = "stderr"
 output."logs" = "stdout"
-input.src.compress = "zstd"
 
 # Database details for Rivenbot
 # Dev only

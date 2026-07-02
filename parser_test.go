@@ -361,12 +361,19 @@ func Test_Parser(t *testing.T) {
 			tokens: DeclareTokens(BareKey("3"), Dot(), BareKey("14159"), Equal(), BasicString("pi")),
 			expectedDoc: &Document{
 				content: []node{
-					&KeyValueNode{
+					&TableNode{
 						key: &keyNode{
-							segments: []string{"3", "14159"},
+							segments: []string{"3"},
 						},
-						value: &stringNode{
-							value: "pi",
+						children: []node{
+							&KeyValueNode{
+								key: &keyNode{
+									segments: []string{"14159"},
+								},
+								value: &stringNode{
+									value: "pi",
+								},
+							},
 						},
 					},
 				},
