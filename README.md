@@ -74,12 +74,13 @@ func main() {
 }
 ```
 
-The result for this small mutation in the `db_config.toml` file would be:
+The diff for this small change looks like this:
 
-```toml
+```diff
 # My database config
 [database]
-username = "new_username" # <-- Mutation occurred here!
++ username = "new_username"
+- username = "root_username"
 password = "root_password"
 port = 5432
 host = "localhost"
