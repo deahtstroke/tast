@@ -4,6 +4,29 @@ import (
 	"fmt"
 )
 
+type scanError struct {
+	Line    int
+	Column  int
+	Offset  int
+	Message string
+}
+
+func (e scanError) Error() string {
+	return fmt.Sprintf("tast: scan error at %d:%d (offset %d): %s",
+		e.Line, e.Column, e.Offset, e.Message)
+}
+
+type parseError struct {
+	Token   token
+	Message string
+	Code    parserErrorCode
+}
+
+func (e parseError) Error() string {
+	return fmt.Sprintf("tast [%s]: parse error at %d:%d: %s",
+		e.Code.String(), e.Token.Line, e.Token.Column, e.Message)
+}
+
 type parserErrorCode int
 
 const (
@@ -21,12 +44,6 @@ const (
 	errUnspecifiedValueForKey
 	errMissingNewLine
 )
-
-type parseError struct {
-	Token   token
-	Message string
-	Code    parserErrorCode
-}
 
 func (c parserErrorCode) String() string {
 	switch c {
@@ -53,21 +70,4 @@ func (c parserErrorCode) String() string {
 	default:
 		return "Unknown error code"
 	}
-}
-
-func (e parseError) Error() string {
-	return fmt.Sprintf("tast [%s]: parse error at %d:%d: %s",
-		e.Code.String(), e.Token.Line, e.Token.Column, e.Message)
-}
-
-type scanError struct {
-	Line    int
-	Column  int
-	Offset  int
-	Message string
-}
-
-func (e scanError) Error() string {
-	return fmt.Sprintf("tast: scan error at %d:%d (offset %d): %s",
-		e.Line, e.Column, e.Offset, e.Message)
 }

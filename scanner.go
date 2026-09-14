@@ -142,12 +142,18 @@ func (s *scanner) scanNext() {
 		s.addToken(plus, "+")
 	case '-':
 		s.addToken(minus, "-")
-	case '\t', ' ', '\r':
+	case '\t', ' ', '\r': // ignore tabs, spaces and carriage returns
 		break
 	default:
+		// Check for both regular numbers and dates
 		if isDigit(currentChar) {
-			s.number()
-			return
+			if s.isLocalDateStart() || s.isLocalTimeStart() {
+				// TODO: Implement scanning for:
+				// - LocalDate
+				// - LocalTime
+				// - LocalDateTime
+				// - OffsetDateTime
+			}
 		}
 
 		if isKey(currentChar) {
@@ -155,8 +161,32 @@ func (s *scanner) scanNext() {
 			return
 		}
 
-		s.addError(fmt.Sprintf("unexpected character %q", currentChar))
+		s.addError("unexpected character " + string(currentChar))
 	}
+}
+
+func (s *scanner) time() {
+}
+
+// LocalDate should start with 4 ints denoting year + a hypen '-' (YYYY-mm-dd)
+func (s *scanner) isLocalDateStart() bool {
+	for i := range 4 {
+		if !isDigit(s.peekAt(i)) {
+			return false
+		}
+	}
+
+	return s.peekAt(4) == '-'
+}
+
+func (s *scanner) isLocalTimeStart() bool {
+	for i := range 2 {
+		if !isDigit(s.peekAt(i)) {
+			return false
+		}
+	}
+
+	return s.peekAt(2) == ':'
 }
 
 func (s *scanner) matchSequence(expected string) bool {
@@ -205,6 +235,7 @@ func (s *scanner) peekAt(offset int) byte {
 	return s.source[s.current+offset]
 }
 
+// Adds a token to the scanner's list of consumed tokens
 func (s *scanner) addToken(tokenType tokenType, literal any) {
 	lexeme := string(s.source[s.start:s.current])
 	t := token{

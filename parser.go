@@ -26,10 +26,10 @@ func newParser(tokens []token) *parser {
 	}
 }
 
-// parse() starts the parsing process of iterating the tokens assigned
-// to the parse struct and create a TOML-Document
+// parse() reads the tokens assigned
+// to the parser and creates a TOML-Document
 // In the case where there are errors while parsing, the accumulated errors
-// will be returned in the slice of ParseErrors
+// will be returned in the ParseErrors slice
 func (p *parser) parse() (*Document, []parseError) {
 	document := &Document{}
 	for !p.isAtEnd() {

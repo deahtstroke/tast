@@ -7,10 +7,12 @@ import (
 
 // Parses a byte array into a TOML document
 func ParseBytes(src []byte) (*Document, error) {
-	scanner := newScanner(src)
-	scanner.scan()
+	tokens, err := newScanner(src).scan()
+	if err != nil {
+		return nil, err
+	}
 
-	parser := newParser(scanner.tokens)
+	parser := newParser(tokens)
 	doc, errs := parser.parse()
 	if len(errs) > 0 {
 		return nil, errs[0]
@@ -18,7 +20,7 @@ func ParseBytes(src []byte) (*Document, error) {
 	return doc, nil
 }
 
-// Reads the a TOML document from a path to a source file
+// Reads the TOML document from a path to a source file
 func LoadFile(path string) (*Document, error) {
 	f, err := os.ReadFile(path)
 	if err != nil {
