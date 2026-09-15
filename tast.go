@@ -43,12 +43,23 @@ func ParseFrom(r io.Reader) (*Document, error) {
 	return ParseBytes(src)
 }
 
+func (d *Document) WriteTo(w io.Writer) (int64, error) {
+	p := newPrinter(w)
+	if err := p.print(d); err != nil {
+		return 0, p.err
+	}
+
+	return p.n, p.err
+}
+
 // Saves the current document source to a file
 func (d *Document) Save(path string) error {
-	s, err := newPrinter().print(d)
+	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(path, []byte(s), 0o644)
+	defer f.Close()
+	_, err = d.WriteTo(f)
+	return err
 }

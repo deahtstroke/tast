@@ -1,30 +1,41 @@
 package tast
 
 import (
+	"io"
 	"strings"
 )
 
 type printer struct {
-	buf    strings.Builder
+	writer io.Writer
 	prefix string
+	n      int64
+	err    error
 }
 
-func newPrinter() *printer {
-	return &printer{}
+func newPrinter(w io.Writer) *printer {
+	return &printer{writer: w}
 }
 
-func (p *printer) print(doc *Document) (string, error) {
+func (p *printer) write(s string) {
+	if p.err != nil {
+		return
+	}
+
+	_, p.err = io.WriteString(p.writer, s)
+}
+
+func (p *printer) print(doc *Document) error {
 	for _, node := range doc.content {
 		if err := node.accept(p); err != nil {
-			return "", err
+			return err
 		}
 	}
-	return p.buf.String(), nil
+	return nil
 }
 
 func (p *printer) visitTableNode(n *TableNode) error {
 	for _, comment := range n.leadingTrivia {
-		p.buf.WriteString(comment.Lexeme)
+		p.write(comment.Lexeme)
 	}
 
 	if n.isImplicit {
@@ -40,12 +51,14 @@ func (p *printer) visitTableNode(n *TableNode) error {
 		return nil
 	}
 
-	p.buf.WriteString("[")
-	n.key.accept(p)
-	p.buf.WriteString("]")
+	p.write("[")
+	if err := n.key.accept(p); err != nil {
+		return err
+	}
+	p.write("]")
 
 	for _, trivia := range n.lineTrivia {
-		p.buf.WriteString(trivia.Lexeme)
+		p.write(trivia.Lexeme)
 	}
 
 	for _, c := range n.children {
@@ -55,7 +68,7 @@ func (p *printer) visitTableNode(n *TableNode) error {
 	}
 
 	for _, trivia := range n.trailingTrivia {
-		p.buf.WriteString(trivia.Lexeme)
+		p.write(trivia.Lexeme)
 	}
 
 	return nil
@@ -63,28 +76,28 @@ func (p *printer) visitTableNode(n *TableNode) error {
 
 func (p *printer) visitKeyValueNode(n *KeyValueNode) error {
 	for _, t := range n.leadingTrivia {
-		p.buf.WriteString(t.Lexeme)
+		p.write(t.Lexeme)
 	}
 
 	// dotted-key prefix (if there is one)
-	p.buf.WriteString(p.prefix)
+	p.write(p.prefix)
 
 	if err := n.key.accept(p); err != nil {
 		return err
 	}
 
-	p.buf.WriteString(" = ")
+	p.write(" = ")
 
 	if err := n.value.accept(p); err != nil {
 		return err
 	}
 
 	for _, trivia := range n.lineTrivia {
-		p.buf.WriteString(trivia.Lexeme)
+		p.write(trivia.Lexeme)
 	}
 
 	for _, trivia := range n.trailingTrivia {
-		p.buf.WriteString(trivia.Lexeme)
+		p.write(trivia.Lexeme)
 	}
 	return nil
 }
@@ -94,26 +107,26 @@ func (p *printer) visitKeyNode(n *keyNode) error {
 	for _, token := range n.tokens {
 		lexemes = append(lexemes, token.Lexeme)
 	}
-	p.buf.WriteString(strings.Join(lexemes, "."))
+	p.write(strings.Join(lexemes, "."))
 	return nil
 }
 
 func (p *printer) visitStringNode(n *stringNode) error {
-	p.buf.WriteString(n.token.Lexeme)
+	p.write(n.token.Lexeme)
 	return nil
 }
 
 func (p *printer) visitIntegerNode(n *integerNode) error {
-	p.buf.WriteString(n.token.Lexeme)
+	p.write(n.token.Lexeme)
 	return nil
 }
 
 func (p *printer) visitFloatNode(n *floatNode) error {
-	p.buf.WriteString(n.token.Lexeme)
+	p.write(n.token.Lexeme)
 	return nil
 }
 
 func (p *printer) visitBooleanNode(n *booleanNode) error {
-	p.buf.WriteString(n.token.Lexeme)
+	p.write(n.token.Lexeme)
 	return nil
 }

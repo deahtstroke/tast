@@ -2,7 +2,6 @@ package tast
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"math"
 	"strconv"
@@ -147,13 +146,8 @@ func (s *scanner) scanNext() {
 	default:
 		// Check for both regular numbers and dates
 		if isDigit(currentChar) {
-			if s.isLocalDateStart() || s.isLocalTimeStart() {
-				// TODO: Implement scanning for:
-				// - LocalDate
-				// - LocalTime
-				// - LocalDateTime
-				// - OffsetDateTime
-			}
+			s.number()
+			return
 		}
 
 		if isKey(currentChar) {
@@ -163,30 +157,6 @@ func (s *scanner) scanNext() {
 
 		s.addError("unexpected character " + string(currentChar))
 	}
-}
-
-func (s *scanner) time() {
-}
-
-// LocalDate should start with 4 ints denoting year + a hypen '-' (YYYY-mm-dd)
-func (s *scanner) isLocalDateStart() bool {
-	for i := range 4 {
-		if !isDigit(s.peekAt(i)) {
-			return false
-		}
-	}
-
-	return s.peekAt(4) == '-'
-}
-
-func (s *scanner) isLocalTimeStart() bool {
-	for i := range 2 {
-		if !isDigit(s.peekAt(i)) {
-			return false
-		}
-	}
-
-	return s.peekAt(2) == ':'
 }
 
 func (s *scanner) matchSequence(expected string) bool {

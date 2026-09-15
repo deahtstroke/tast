@@ -7,6 +7,7 @@ import (
 )
 
 func Test_PrinterSuccess(t *testing.T) {
+	var builder *strings.Builder
 	doc := makeDoc(
 		makeKV([]string{"concurrency"}, makeVal(int64(100)), withLine("\n")),
 		makeTable(makeKey("output"), true, []node{makeKV([]string{"errors"}, makeVal("stderr"), withLine("\n"))}, []NodeOption{}),
@@ -20,7 +21,7 @@ func Test_PrinterSuccess(t *testing.T) {
 			[]NodeOption{withLeading("\n", "# Database details for Rivenbot", "\n", "# Dev only", "\n"), withLine("\n")}),
 	)
 
-	got, err := newPrinter().print(doc)
+	err := newPrinter(builder).print(doc)
 	if err != nil {
 		t.Fatalf("Got an error while calling 'print': %v", err)
 	}
@@ -34,6 +35,8 @@ output."logs" = "stdout"
 [database.rivenbot]
 url = "postgres://localhost:5432/rivenbot"
 username = "daniel"`
+
+	got := builder.String()
 
 	if got != expected {
 		t.Fatalf("String mismatch:\n%s", diffStrings(expected, got))
@@ -180,13 +183,10 @@ func makeVal(value any) node {
 // with a '^' marker pointing to the first character that differs.
 func diffStrings(expected, got string) string {
 	// find diff index
-	minLen := len(expected)
-	if len(got) < minLen {
-		minLen = len(got)
-	}
+	minLen := min(len(got), len(expected))
 
 	diffAt := -1
-	for i := 0; i < minLen; i++ {
+	for i := range minLen {
 		if expected[i] != got[i] {
 			diffAt = i
 			break
@@ -218,13 +218,13 @@ func diffStrings(expected, got string) string {
 	gotLines := strings.Split(got, "\n")
 
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("first difference at line %d col %d:\n", line+1, col+1))
+	fmt.Fprintf(&b, "first difference at line %d col %d:\n", line+1, col+1)
 
 	if line < len(expectedLines) {
-		b.WriteString(fmt.Sprintf("expected: %q\n", expectedLines[line]))
+		fmt.Fprintf(&b, "expected: %q\n", expectedLines[line])
 	}
 	if line < len(gotLines) {
-		b.WriteString(fmt.Sprintf("got:      %q\n", gotLines[line]))
+		fmt.Fprintf(&b, "got:      %q\n", gotLines[line])
 	}
 
 	b.WriteString("          ")
