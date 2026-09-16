@@ -45,6 +45,11 @@ const (
 	floatPoint
 	integer
 
+	localDate
+	localTime
+	localDateTime
+	OffsetDateTime
+
 	bareKey
 	// Reserved keywords
 	boolean

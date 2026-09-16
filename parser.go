@@ -237,7 +237,7 @@ func (p *parser) value() node {
 		operator := p.previous().Type
 		switch {
 		case p.matchAny(floatPoint):
-			return createFloatNode(p, operator)
+			return p.createFloatNode(operator)
 		case p.matchAny(integer):
 			return createIntNode(p, operator)
 		case p.matchAny(infinity):
@@ -250,15 +250,15 @@ func (p *parser) value() node {
 
 	switch {
 	case p.matchAny(floatPoint):
-		return createFloatNode(p, 0)
-	case p.matchAny(integer):
-		return createIntNode(p, 0)
+		return p.createFloatNode(0)
 	case p.matchAny(boolean):
 		return createBooleanNode(p)
 	case p.matchAny(infinity):
 		return createInfinityNode(p, 0)
 	case p.matchAny(basicString, multilineBasicString):
 		return createStringNode(p)
+	case p.matchAny(integer):
+		return createIntNode(p, 0)
 	default:
 	}
 
@@ -309,7 +309,7 @@ func createIntNode(p *parser, operator tokenType) node {
 	}
 }
 
-func createFloatNode(p *parser, operator tokenType) node {
+func (p *parser) createFloatNode(operator tokenType) node {
 	val, ok := p.previous().Literal.(float64)
 	if !ok {
 		p.addError(p.peek(), "Unable to parse value to float64", errParsingFloat)
