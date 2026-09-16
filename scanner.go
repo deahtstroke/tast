@@ -20,6 +20,65 @@ type scanner struct {
 	start   int
 }
 
+func (t tokenType) String() string {
+	switch t {
+	case comment:
+		return "Comment"
+	case leftBracket:
+		return "Left Bracket"
+	case rightBracket:
+		return "Right Bracket"
+	case comma:
+		return "Comma"
+	case dot:
+		return "Dot"
+	case minus:
+		return "Minus"
+	case plus:
+		return "Plus"
+	case slash:
+		return "Slash"
+	case star:
+		return "Star"
+	case equal:
+		return "Equal"
+	case newLine:
+		return "New Line"
+	case basicString:
+		return "Basic String"
+	case multilineBasicString:
+		return "Multi-line Basic String"
+	case literalString:
+		return "Literal String"
+	case multilineLiteralString:
+		return "Multi-line Literal String"
+	case floatPoint:
+		return "Floating Point"
+	case integer:
+		return "Integer"
+	case localDate:
+		return "Local Date"
+	case localTime:
+		return "Local Time"
+	case localDateTime:
+		return "Local Date Time"
+	case offsetDateTime:
+		return "Offset Date Time"
+	case bareKey:
+		return "Bare Key"
+	case boolean:
+		return "Boolean"
+	case infinity:
+		return "Infinity"
+	case nan:
+		return "NaN"
+	case eof:
+		return "EOF"
+	default:
+		return ""
+	}
+}
+
 type tokenType uint32
 
 const (
@@ -48,7 +107,7 @@ const (
 	localDate
 	localTime
 	localDateTime
-	OffsetDateTime
+	offsetDateTime
 
 	bareKey
 	// Reserved keywords
@@ -241,7 +300,26 @@ func (s *scanner) comment() {
 }
 
 func (s *scanner) number() {
+	var hasUnderscores bool
 	for !s.isAtEnd() && (isDigit(s.peek()) || s.isValidUnderscore()) {
+		isUnderscore := s.isValidUnderscore()
+		if !isDigit(s.peek()) && isUnderscore {
+			break
+		}
+
+		if isUnderscore {
+			hasUnderscores = true
+		}
+
+		// Parse local time
+		if !hasUnderscores && s.current-s.start == 2 && s.peek() == ':' {
+			s.localTime()
+			return
+		} else if !hasUnderscores && s.current-s.start == 4 && s.peek() == '-' {
+			s.localDate()
+			return
+		}
+
 		s.advance()
 	}
 
@@ -271,6 +349,14 @@ func (s *scanner) number() {
 		}
 		s.addToken(integer, intVal)
 	}
+}
+
+func (s *scanner) localDate() {
+	panic("unimplemented")
+}
+
+func (s *scanner) localTime() {
+	panic("unimplemented")
 }
 
 func (s *scanner) key() {

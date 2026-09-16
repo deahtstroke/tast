@@ -194,6 +194,24 @@ func Test_IntegerNode(t *testing.T) {
 	}
 }
 
+func Test_TimeValues(t *testing.T) {
+	s := scanner{
+		source:  []byte(`1929-08-30`),
+		start:   0,
+		line:    0,
+		current: 0,
+	}
+
+	tokens, err := s.scan()
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	if tokens[0].Type != localDate {
+		t.Fatalf("expected localDate, got %s", tokens[0].Type)
+	}
+}
+
 func Test_KeyNode(t *testing.T) {
 	tests := map[string]struct {
 		source    []byte
