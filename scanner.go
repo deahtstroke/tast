@@ -2,10 +2,16 @@ package tast
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"math"
 	"strconv"
 	"strings"
+	"time"
+)
+
+const (
+	millisecondPrecision = 6
 )
 
 type scanner struct {
@@ -243,6 +249,14 @@ func (s *scanner) advance() byte {
 	return curr
 }
 
+func (s *scanner) advanceN(n int) {
+	if n > 0 {
+		for range n {
+			s.advance()
+		}
+	}
+}
+
 // Looks at the value of the source at the current index
 // without consuming it
 //
@@ -313,8 +327,7 @@ func (s *scanner) number() {
 
 		// Parse local time
 		if !hasUnderscores && s.current-s.start == 2 && s.peek() == ':' {
-			s.localTime()
-			return
+			s.localtime()
 		} else if !hasUnderscores && s.current-s.start == 4 && s.peek() == '-' {
 			s.localDate()
 			return
@@ -351,11 +364,69 @@ func (s *scanner) number() {
 	}
 }
 
-func (s *scanner) localDate() {
-	panic("unimplemented")
+func (s *scanner) localtime() {
+	if s.isAtEnd() || !isDigit(s.peek()) && !isDigit(s.peekNext()) {
+		msg := "Unable to parse local time token: Minutes are malformed"
+		s.addError(msg)
+		return
+	}
+
+	s.advanceN(2)
+
+	// Unknown seconds are assumed to be :00, therefore we just save the token
+	if s.isAtEnd() || s.peek() != ':' {
+		t, err := time.Parse(time.RFC3339, string(s.source[s.start:s.current]))
+		if err != nil {
+			s.addError(fmt.Sprintf("Unable to parse time: %v", err))
+			return
+		}
+
+		s.addToken(localTime, t)
+		return
+	}
+
+	// ':' for seconds
+	s.advance()
+
+	if !s.isAtEnd() || !isDigit(s.peek()) && !isDigit(s.peekNext()) {
+		msg := "Unable to parse local time: Seconds are malformed"
+		s.addError(msg)
+		return
+	}
+
+	s.advanceN(2)
+
+	// Local time that stops at seconds, no millisecond precision
+	if !s.isAtEnd() || s.peek() != '.' {
+		t, err := time.Parse(time.RFC3339, string(s.source[s.start:s.current]))
+		if err != nil {
+			s.addError(fmt.Sprintf("Unable to parse time: %v", err))
+			return
+		}
+
+		s.addToken(localTime, t)
+		return
+	}
+
+	// '.' for milliseconds
+	s.advance()
+
+	for range millisecondPrecision {
+		if s.isAtEnd() || isDigit(s.peek()) {
+			s.advance()
+		}
+	}
+
+	t, err := time.Parse(time.RFC3339, string(s.source[s.start:s.current]))
+	if err != nil {
+		s.addError(fmt.Sprintf("Unable to parse time: %v", err))
+		return
+	}
+
+	s.addToken(localTime, t)
 }
 
-func (s *scanner) localTime() {
+func (s *scanner) localDate() {
 	panic("unimplemented")
 }
 
@@ -454,6 +525,8 @@ func (s *scanner) isValidUnderscore() bool {
 	return s.peek() == '_' && isDigit(s.peekNext())
 }
 
+// isDigit checks if the passed in byte is a digit, e.g., in between '0' and '9'
+// or 48 <= b <= 57
 func isDigit(b byte) bool {
 	return b >= '0' && b <= '9'
 }

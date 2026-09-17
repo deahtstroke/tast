@@ -1,6 +1,6 @@
 module github.com/deahtstroke/tast
 
-go 1.25.3
+go 1.26.0
 
 require gotest.tools/v3 v3.5.2
 
@@ -12,4 +12,5 @@ require (
 require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/text v0.42.0
 )
