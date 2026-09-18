@@ -3,6 +3,9 @@ package tast
 import (
 	"math"
 	"testing"
+	"time"
+
+	"gotest.tools/v3/assert"
 )
 
 func Test_Scan(t *testing.T) {
@@ -196,7 +199,7 @@ func Test_IntegerNode(t *testing.T) {
 
 func Test_TimeValues(t *testing.T) {
 	s := scanner{
-		source:  []byte(`1929-08-30`),
+		source:  []byte(`12:00`),
 		start:   0,
 		line:    0,
 		current: 0,
@@ -207,9 +210,18 @@ func Test_TimeValues(t *testing.T) {
 		t.Fatalf("unexpected error %v", err)
 	}
 
-	if tokens[0].Type != localDate {
+	if tokens[0].Type != localTime {
 		t.Fatalf("expected localDate, got %s", tokens[0].Type)
 	}
+
+	literal, ok := tokens[0].Literal.(time.Time)
+	if !ok {
+		t.Fatalf("expected token of type Time, got %T", t)
+	}
+
+	assert.Equal(t, literal.Second(), 0)
+	assert.Equal(t, literal.Minute(), 0)
+	assert.Equal(t, literal.Hour(), 12)
 }
 
 func Test_KeyNode(t *testing.T) {

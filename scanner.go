@@ -315,22 +315,23 @@ func (s *scanner) comment() {
 
 func (s *scanner) number() {
 	var hasUnderscores bool
-	for !s.isAtEnd() && (isDigit(s.peek()) || s.isValidUnderscore()) {
+	for !s.isAtEnd() {
 		isUnderscore := s.isValidUnderscore()
-		if !isDigit(s.peek()) && isUnderscore {
-			break
-		}
 
 		if isUnderscore {
 			hasUnderscores = true
 		}
 
-		// Parse local time
 		if !hasUnderscores && s.current-s.start == 2 && s.peek() == ':' {
 			s.localtime()
+			return
 		} else if !hasUnderscores && s.current-s.start == 4 && s.peek() == '-' {
 			s.localDate()
 			return
+		}
+
+		if !isDigit(s.peek()) && !isUnderscore {
+			break
 		}
 
 		s.advance()
@@ -371,11 +372,12 @@ func (s *scanner) localtime() {
 		return
 	}
 
-	s.advanceN(2)
+	// Consume ':' and both minute digits
+	s.advanceN(3)
 
 	// Unknown seconds are assumed to be :00, therefore we just save the token
 	if s.isAtEnd() || s.peek() != ':' {
-		t, err := time.Parse(time.RFC3339, string(s.source[s.start:s.current]))
+		t, err := time.Parse("15:04", string(s.source[s.start:s.current]))
 		if err != nil {
 			s.addError(fmt.Sprintf("Unable to parse time: %v", err))
 			return
