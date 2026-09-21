@@ -124,6 +124,15 @@ const (
 	eof
 )
 
+var timeTerminators map[byte]struct{} = map[byte]struct{}{
+	'\n': {},
+	'\t': {},
+	' ':  {},
+	'#':  {},
+	']':  {},
+	'}':  {},
+}
+
 type token struct {
 	Type    tokenType
 	Lexeme  string
@@ -315,6 +324,7 @@ func (s *scanner) comment() {
 
 func (s *scanner) number() {
 	var hasUnderscores bool
+
 	for !s.isAtEnd() {
 		isUnderscore := s.isValidUnderscore()
 
@@ -322,12 +332,14 @@ func (s *scanner) number() {
 			hasUnderscores = true
 		}
 
-		if !hasUnderscores && s.current-s.start == 2 && s.peek() == ':' {
-			s.localtime()
-			return
-		} else if !hasUnderscores && s.current-s.start == 4 && s.peek() == '-' {
-			s.localDate()
-			return
+		if !hasUnderscores {
+			if s.current-s.start == 2 && s.peek() == ':' {
+				s.parseLocalTime()
+				return
+			} else if s.current-s.start == 4 && s.peek() == '-' {
+				s.parseLocalDate()
+				return
+			}
 		}
 
 		if !isDigit(s.peek()) && !isUnderscore {
@@ -365,19 +377,21 @@ func (s *scanner) number() {
 	}
 }
 
-func (s *scanner) localtime() {
-	if s.isAtEnd() || !isDigit(s.peek()) && !isDigit(s.peekNext()) {
+func (s *scanner) parseLocalTime() {
+	s.advance()
+	if s.isAtEnd() || !(isDigit(s.peek()) && isDigit(s.peekNext())) {
 		msg := "Unable to parse local time token: Minutes are malformed"
 		s.addError(msg)
 		return
 	}
 
-	// Consume ':' and both minute digits
-	s.advanceN(3)
+	s.advanceN(2)
 
 	// Unknown seconds are assumed to be :00, therefore we just save the token
-	if s.isAtEnd() || s.peek() != ':' {
-		t, err := time.Parse("15:04", string(s.source[s.start:s.current]))
+	_, isTerminator := timeTerminators[s.peek()]
+	if s.isAtEnd() || isTerminator {
+		union := string(s.source[s.start:s.current]) + ":00"
+		t, err := time.Parse(time.TimeOnly, union)
 		if err != nil {
 			s.addError(fmt.Sprintf("Unable to parse time: %v", err))
 			return
@@ -385,12 +399,16 @@ func (s *scanner) localtime() {
 
 		s.addToken(localTime, t)
 		return
+	} else if s.peek() != ':' {
+		msg := "Unable to parse local time token: Minutes are malformed"
+		s.addError(msg)
+		return
 	}
 
 	// ':' for seconds
 	s.advance()
 
-	if !s.isAtEnd() || !isDigit(s.peek()) && !isDigit(s.peekNext()) {
+	if s.isAtEnd() || !(isDigit(s.peek()) && isDigit(s.peekNext())) {
 		msg := "Unable to parse local time: Seconds are malformed"
 		s.addError(msg)
 		return
@@ -399,8 +417,9 @@ func (s *scanner) localtime() {
 	s.advanceN(2)
 
 	// Local time that stops at seconds, no millisecond precision
-	if !s.isAtEnd() || s.peek() != '.' {
-		t, err := time.Parse(time.RFC3339, string(s.source[s.start:s.current]))
+	_, isTerminator = timeTerminators[s.peek()]
+	if s.isAtEnd() || isTerminator {
+		t, err := time.Parse("15:04:05", string(s.source[s.start:s.current]))
 		if err != nil {
 			s.addError(fmt.Sprintf("Unable to parse time: %v", err))
 			return
@@ -428,7 +447,7 @@ func (s *scanner) localtime() {
 	s.addToken(localTime, t)
 }
 
-func (s *scanner) localDate() {
+func (s *scanner) parseLocalDate() {
 	panic("unimplemented")
 }
 

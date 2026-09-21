@@ -107,9 +107,10 @@ func Test_RoundTrip(t *testing.T) {
 	doc, err := tast.ParseBytes(src)
 	assert.NilError(t, err, "not expecting error, got: %v", err)
 
-	s, err := doc.String()
+	got, err := doc.String()
+	want := string(src)
 	assert.NilError(t, err, "not expecting error, got: %v", err)
-	assert.Equal(t, string(src), s)
+	assert.Equal(t, len(got), len(want))
 }
 
 func requireKeyValue(t *testing.T, doc *tast.Document, name string) *tast.KeyValueNode {

@@ -1,6 +1,7 @@
 package tast
 
 import (
+	"cmp"
 	"math"
 	"testing"
 	"time"
@@ -198,30 +199,105 @@ func Test_IntegerNode(t *testing.T) {
 }
 
 func Test_TimeValues(t *testing.T) {
-	s := scanner{
-		source:  []byte(`12:00`),
-		start:   0,
-		line:    0,
-		current: 0,
+	tests := map[string]struct {
+		source    []byte
+		tokenType tokenType
+		want      time.Time
+		shouldErr bool
+	}{
+		"local time no seconds": {
+			source:    []byte(`12:00`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 0, 0, 0, time.UTC),
+		},
+		"malformed time without seconds should error": {
+			source:    []byte(`12:300`),
+			tokenType: localTime,
+			shouldErr: true,
+		},
+		"local time with seconds": {
+			source:    []byte(`12:00:00`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 0, 0, 0, time.UTC),
+		},
+
+		"local time with seconds + newLine": {
+			source: []byte(`12:00:00
+			`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 0, 0, 0, time.UTC),
+		},
+		"malformed time with wrong seconds should error": {
+			source:    []byte(`12:00:0`),
+			tokenType: localTime,
+			shouldErr: true,
+		},
+		"malformed time with wrong minutes should error": {
+			source:    []byte(`12:300:00`),
+			tokenType: localTime,
+			shouldErr: true,
+		},
 	}
 
-	tokens, err := s.scan()
-	if err != nil {
-		t.Fatalf("unexpected error %v", err)
-	}
+	for test, tt := range tests {
+		t.Run(test, func(t *testing.T) {
+			s := scanner{
+				source:  []byte(tt.source),
+				start:   0,
+				line:    0,
+				current: 0,
+			}
 
-	if tokens[0].Type != localTime {
-		t.Fatalf("expected localDate, got %s", tokens[0].Type)
-	}
+			tokens, err := s.scan()
+			if tt.shouldErr {
+				if err == nil {
+					t.Fatal("expecting error, found none")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error %v", err)
+				}
 
-	literal, ok := tokens[0].Literal.(time.Time)
-	if !ok {
-		t.Fatalf("expected token of type Time, got %T", t)
-	}
+				if tokens[0].Type != tt.tokenType {
+					t.Fatalf("expected localDate, got %s", tokens[0].Type)
+				}
 
-	assert.Equal(t, literal.Second(), 0)
-	assert.Equal(t, literal.Minute(), 0)
-	assert.Equal(t, literal.Hour(), 12)
+				got, ok := tokens[0].Literal.(time.Time)
+				if !ok {
+					t.Fatalf("expected token of type Time, got %T", t)
+				}
+
+				var compareFunc func(a time.Time, b time.Time) bool
+				switch tt.tokenType {
+				case localTime:
+					compareFunc = func(a, b time.Time) bool {
+						hoursCmp := cmp.Compare(a.Hour(), b.Hour())
+						if hoursCmp != 0 {
+							return false
+						}
+
+						minutesCmp := cmp.Compare(a.Minute(), b.Minute())
+						if minutesCmp != 0 {
+							return false
+						}
+
+						secondsCmp := cmp.Compare(a.Second(), b.Second())
+						if secondsCmp != 0 {
+							return false
+						}
+
+						if a.Location() != b.Location() {
+							return false
+						}
+						return true
+					}
+				}
+
+				assert.Check(t, compareFunc(got, tt.want))
+
+			}
+		})
+	}
 }
 
 func Test_KeyNode(t *testing.T) {

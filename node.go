@@ -61,8 +61,9 @@ func (d *Document) Table(key string) (*TableNode, bool) {
 
 // Returns a string representation of the document
 func (d *Document) String() (string, error) {
-	var builder *strings.Builder
-	return builder.String(), newPrinter(builder).print(d)
+	var builder strings.Builder
+	err := newPrinter(&builder).print(d)
+	return builder.String(), err
 }
 
 type triviaType int

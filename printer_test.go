@@ -7,7 +7,7 @@ import (
 )
 
 func Test_PrinterSuccess(t *testing.T) {
-	var builder *strings.Builder
+	var builder strings.Builder
 	doc := makeDoc(
 		makeKV([]string{"concurrency"}, makeVal(int64(100)), withLine("\n")),
 		makeTable(makeKey("output"), true, []node{makeKV([]string{"errors"}, makeVal("stderr"), withLine("\n"))}, []NodeOption{}),
@@ -21,7 +21,7 @@ func Test_PrinterSuccess(t *testing.T) {
 			[]NodeOption{withLeading("\n", "# Database details for Rivenbot", "\n", "# Dev only", "\n"), withLine("\n")}),
 	)
 
-	err := newPrinter(builder).print(doc)
+	err := newPrinter(&builder).print(doc)
 	if err != nil {
 		t.Fatalf("Got an error while calling 'print': %v", err)
 	}
