@@ -418,7 +418,9 @@ func (s *scanner) parseLocalTime() {
 
 	// Local time that stops at seconds, no millisecond precision
 	_, isTerminator = timeTerminators[s.peek()]
-	if s.isAtEnd() || isTerminator {
+	illegalTermination := !isTerminator && s.peek() != '.'
+	switch {
+	case isTerminator, s.isAtEnd():
 		t, err := time.Parse("15:04:05", string(s.source[s.start:s.current]))
 		if err != nil {
 			s.addError(fmt.Sprintf("Unable to parse time: %v", err))
@@ -427,6 +429,11 @@ func (s *scanner) parseLocalTime() {
 
 		s.addToken(localTime, t)
 		return
+	case illegalTermination:
+		msg := "Unable to parse local time: Seconds are malformed"
+		s.addError(msg)
+		return
+	default:
 	}
 
 	// '.' for milliseconds

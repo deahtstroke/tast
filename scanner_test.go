@@ -198,7 +198,7 @@ func Test_IntegerNode(t *testing.T) {
 	}
 }
 
-func Test_TimeValues(t *testing.T) {
+func Test_LocalTimeParsing(t *testing.T) {
 	tests := map[string]struct {
 		source    []byte
 		tokenType tokenType
@@ -236,6 +236,16 @@ func Test_TimeValues(t *testing.T) {
 			source:    []byte(`12:300:00`),
 			tokenType: localTime,
 			shouldErr: true,
+		},
+		"local time with seconds + illegal terminal": {
+			source:    []byte(`12:30:20;`),
+			tokenType: localTime,
+			shouldErr: true,
+		},
+		"local time with milliseconds precision (1 digit)": {
+			source:    []byte(`12:20:00.1`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 20, 0o0, 1e8, time.UTC),
 		},
 	}
 
@@ -283,6 +293,11 @@ func Test_TimeValues(t *testing.T) {
 
 						secondsCmp := cmp.Compare(a.Second(), b.Second())
 						if secondsCmp != 0 {
+							return false
+						}
+
+						nanosecondsCmp := cmp.Compare(a.Nanosecond(), b.Nanosecond())
+						if nanosecondsCmp != 0 {
 							return false
 						}
 
