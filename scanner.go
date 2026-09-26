@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	millisecondPrecision = 6
+	NanoSecondPrecision = 9
 )
 
 type scanner struct {
@@ -439,13 +439,12 @@ func (s *scanner) parseLocalTime() {
 	// '.' for milliseconds
 	s.advance()
 
-	for range millisecondPrecision {
-		if s.isAtEnd() || isDigit(s.peek()) {
-			s.advance()
-		}
+	c := 0
+	for !s.isAtEnd() || c > NanoSecondPrecision {
+		s.advance()
 	}
 
-	t, err := time.Parse(time.RFC3339, string(s.source[s.start:s.current]))
+	t, err := time.Parse("15:04:05.999999", string(s.source[s.start:s.current]))
 	if err != nil {
 		s.addError(fmt.Sprintf("Unable to parse time: %v", err))
 		return

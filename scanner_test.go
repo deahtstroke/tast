@@ -247,6 +247,51 @@ func Test_LocalTimeParsing(t *testing.T) {
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 20, 0o0, 1e8, time.UTC),
 		},
+		"local time with millisecond precision (2 digits)": {
+			source:    []byte(`12:20:00.12`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 20, 0o0, 12e7, time.UTC),
+		},
+		"local time with millisecond precision (3 digits)": {
+			source:    []byte(`12:20:00.123`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 20, 0o0, 123e6, time.UTC),
+		},
+		"local time with microsecond precision (4 digits)": {
+			source:    []byte(`12:20:00.1234`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 20, 0o0, 1234e5, time.UTC),
+		},
+		"local time with microsecond precision (5 digits)": {
+			source:    []byte(`12:20:00.12345`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 20, 0o0, 12345e4, time.UTC),
+		},
+		"local time with microsecond precision (6 digits)": {
+			source:    []byte(`12:20:00.123456`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 20, 0o0, 123456e3, time.UTC),
+		},
+		"local time with nanosecond precision (7 digits)": {
+			source:    []byte(`12:20:00.1234567`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 20, 0o0, 1234567e2, time.UTC),
+		},
+		"local time with nanosecond precision (8 digits)": {
+			source:    []byte(`12:20:00.12345678`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 20, 0o0, 123456780, time.UTC),
+		},
+		"local time with nanosecond precision (9 digits)": {
+			source:    []byte(`12:20:00.123456789`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 20, 0o0, 123456789, time.UTC),
+		},
+		"local time with nanosecond precision should truncate past 9 digits": {
+			source:    []byte(`12:20:00.1234567899999`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 20, 0o0, 123456789, time.UTC),
+		},
 	}
 
 	for test, tt := range tests {
