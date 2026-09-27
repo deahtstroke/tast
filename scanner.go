@@ -34,6 +34,10 @@ func (t tokenType) String() string {
 		return "Left Bracket"
 	case rightBracket:
 		return "Right Bracket"
+	case leftBrace:
+		return "Left Curly Brace"
+	case rightBrace:
+		return "Right Curly Brace"
 	case comma:
 		return "Comma"
 	case dot:
@@ -92,6 +96,8 @@ const (
 	comment
 	leftBracket
 	rightBracket
+	leftBrace
+	rightBrace
 	comma
 	dot
 	minus
@@ -190,6 +196,10 @@ func (s *scanner) scanNext() {
 		s.addToken(leftBracket, "[")
 	case ']':
 		s.addToken(rightBracket, "]")
+	case '{':
+		s.addToken(leftBrace, "{")
+	case '}':
+		s.addToken(rightBracket, "}")
 	case 'i':
 		if s.matchSequence("nf") {
 			s.addToken(infinity, math.Inf(1))

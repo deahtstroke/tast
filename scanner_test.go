@@ -204,26 +204,51 @@ func Test_LocalTimeParsing(t *testing.T) {
 		tokenType tokenType
 		want      time.Time
 		shouldErr bool
+		errType   error
 	}{
-		"local time no seconds": {
+		"inferred seconds": {
 			source:    []byte(`12:00`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 0, 0, 0, time.UTC),
 		},
-		"malformed time without seconds should error": {
+		"malformed seconds should error": {
 			source:    []byte(`12:300`),
 			tokenType: localTime,
 			shouldErr: true,
 		},
-		"local time with seconds": {
-			source:    []byte(`12:00:00`),
+		"seconds defined": {
+			source:    []byte(`12:00:10`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 0, 10, 0, time.UTC),
+		},
+		"terminator character (new line)": {
+			source: []byte(`12:00:00
+			`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 0, 0, 0, time.UTC),
 		},
-
-		"local time with seconds + newLine": {
-			source: []byte(`12:00:00
-			`),
+		"terminator character (tab)": {
+			source:    []byte(`12:00:00	`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 0, 0, 0, time.UTC),
+		},
+		"terminator character (space)": {
+			source:    []byte(`12:00:00 `),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 0, 0, 0, time.UTC),
+		},
+		"terminator character (hashtag)": {
+			source:    []byte(`12:00:00#`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 0, 0, 0, time.UTC),
+		},
+		"terminator character (closing bracket)": {
+			source:    []byte(`12:00:00]`),
+			tokenType: localTime,
+			want:      time.Date(0, 0, 0, 12, 0, 0, 0, time.UTC),
+		},
+		"terminator character (closing brace)": {
+			source:    []byte("12:00:00}"),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 0, 0, 0, time.UTC),
 		},
@@ -237,60 +262,70 @@ func Test_LocalTimeParsing(t *testing.T) {
 			tokenType: localTime,
 			shouldErr: true,
 		},
-		"local time with seconds + illegal terminal": {
+		"seconds + illegal terminal": {
 			source:    []byte(`12:30:20;`),
 			tokenType: localTime,
 			shouldErr: true,
 		},
-		"local time with milliseconds precision (1 digit)": {
+		"milliseconds precision (1 digit)": {
 			source:    []byte(`12:20:00.1`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 20, 0o0, 1e8, time.UTC),
 		},
-		"local time with millisecond precision (2 digits)": {
+		"millisecond precision (2 digits)": {
 			source:    []byte(`12:20:00.12`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 20, 0o0, 12e7, time.UTC),
 		},
-		"local time with millisecond precision (3 digits)": {
+		"millisecond precision (3 digits)": {
 			source:    []byte(`12:20:00.123`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 20, 0o0, 123e6, time.UTC),
 		},
-		"local time with microsecond precision (4 digits)": {
+		"microsecond precision (4 digits)": {
 			source:    []byte(`12:20:00.1234`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 20, 0o0, 1234e5, time.UTC),
 		},
-		"local time with microsecond precision (5 digits)": {
+		"microsecond precision (5 digits)": {
 			source:    []byte(`12:20:00.12345`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 20, 0o0, 12345e4, time.UTC),
 		},
-		"local time with microsecond precision (6 digits)": {
+		"microsecond precision (6 digits)": {
 			source:    []byte(`12:20:00.123456`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 20, 0o0, 123456e3, time.UTC),
 		},
-		"local time with nanosecond precision (7 digits)": {
+		"nanosecond precision (7 digits)": {
 			source:    []byte(`12:20:00.1234567`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 20, 0o0, 1234567e2, time.UTC),
 		},
-		"local time with nanosecond precision (8 digits)": {
+		"nanosecond precision (8 digits)": {
 			source:    []byte(`12:20:00.12345678`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 20, 0o0, 123456780, time.UTC),
 		},
-		"local time with nanosecond precision (9 digits)": {
+		"nanosecond precision (9 digits)": {
 			source:    []byte(`12:20:00.123456789`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 20, 0o0, 123456789, time.UTC),
 		},
-		"local time with nanosecond precision should truncate past 9 digits": {
+		"nanosecond precision should truncate past 9 digits": {
 			source:    []byte(`12:20:00.1234567899999`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 20, 0o0, 123456789, time.UTC),
+		},
+		"hour out of range should error": {
+			source:    []byte(`29:00:00`),
+			tokenType: localTime,
+			shouldErr: true,
+		},
+		"minute out of range should error": {
+			source:    []byte(`24:94:00`),
+			tokenType: localTime,
+			shouldErr: true,
 		},
 	}
 
@@ -306,7 +341,7 @@ func Test_LocalTimeParsing(t *testing.T) {
 			tokens, err := s.scan()
 			if tt.shouldErr {
 				if err == nil {
-					t.Fatal("expecting error, found none")
+					t.Fatalf("Expecting error, got none")
 				}
 			} else {
 				if err != nil {
@@ -325,39 +360,40 @@ func Test_LocalTimeParsing(t *testing.T) {
 				var compareFunc func(a time.Time, b time.Time) bool
 				switch tt.tokenType {
 				case localTime:
-					compareFunc = func(a, b time.Time) bool {
-						hoursCmp := cmp.Compare(a.Hour(), b.Hour())
-						if hoursCmp != 0 {
-							return false
-						}
-
-						minutesCmp := cmp.Compare(a.Minute(), b.Minute())
-						if minutesCmp != 0 {
-							return false
-						}
-
-						secondsCmp := cmp.Compare(a.Second(), b.Second())
-						if secondsCmp != 0 {
-							return false
-						}
-
-						nanosecondsCmp := cmp.Compare(a.Nanosecond(), b.Nanosecond())
-						if nanosecondsCmp != 0 {
-							return false
-						}
-
-						if a.Location() != b.Location() {
-							return false
-						}
-						return true
-					}
+					compareFunc = compareLocalTime
 				}
 
 				assert.Check(t, compareFunc(got, tt.want))
-
 			}
 		})
 	}
+}
+
+func compareLocalTime(a, b time.Time) bool {
+	hoursCmp := cmp.Compare(a.Hour(), b.Hour())
+	if hoursCmp != 0 {
+		return false
+	}
+
+	minutesCmp := cmp.Compare(a.Minute(), b.Minute())
+	if minutesCmp != 0 {
+		return false
+	}
+
+	secondsCmp := cmp.Compare(a.Second(), b.Second())
+	if secondsCmp != 0 {
+		return false
+	}
+
+	nanosecondsCmp := cmp.Compare(a.Nanosecond(), b.Nanosecond())
+	if nanosecondsCmp != 0 {
+		return false
+	}
+
+	if a.Location() != b.Location() {
+		return false
+	}
+	return true
 }
 
 func Test_KeyNode(t *testing.T) {
