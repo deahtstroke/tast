@@ -1,15 +1,15 @@
 package tast
 
 import (
-	"cmp"
 	"math"
+	"reflect"
 	"testing"
 	"time"
 
 	"gotest.tools/v3/assert"
 )
 
-func Test_Scan(t *testing.T) {
+func Test_Scan_Values(t *testing.T) {
 	tests := map[string]struct {
 		sourceBytes    []byte
 		expectedTokens []token
@@ -18,46 +18,55 @@ func Test_Scan(t *testing.T) {
 		"simple key value": {
 			sourceBytes: []byte(`foo = "bar"`),
 			expectedTokens: []token{
-				{Type: bareKey, Lexeme: "foo", Literal: "foo", Line: 1, Column: 0},
-				{Type: equal, Lexeme: "=", Literal: "=", Line: 1, Column: 5},
-				{Type: basicString, Lexeme: `"bar"`, Literal: "bar", Line: 1, Column: 7},
+				{Type: bareKey, Lexeme: "foo", Literal: "foo", Line: 0, Column: 3},
+				{Type: equal, Lexeme: "=", Literal: "=", Line: 0, Column: 5},
+				{Type: basicString, Lexeme: `"bar"`, Literal: "bar", Line: 0, Column: 11},
 				{Type: eof},
 			},
 		},
 		"simple key value with integer": {
 			sourceBytes: []byte(`foo = +23`),
 			expectedTokens: []token{
-				{Type: bareKey, Lexeme: "foo", Literal: "foo", Line: 1, Column: 0},
-				{Type: equal, Lexeme: "=", Literal: "=", Line: 1, Column: 5},
-				{Type: plus, Lexeme: "+", Literal: "+", Line: 1, Column: 6},
-				{Type: integer, Lexeme: "23", Literal: int64(23), Line: 1, Column: 7},
+				{Type: bareKey, Lexeme: "foo", Literal: "foo", Line: 0, Column: 3},
+				{Type: equal, Lexeme: "=", Literal: "=", Line: 0, Column: 5},
+				{Type: plus, Lexeme: "+", Literal: "+", Line: 0, Column: 7},
+				{Type: integer, Lexeme: "23", Literal: int64(23), Line: 0, Column: 9},
 				{Type: eof},
 			},
 		},
 		"simple key value with floating point": {
 			sourceBytes: []byte(`foo = 5_123.12`),
 			expectedTokens: []token{
-				{Type: bareKey, Lexeme: "foo", Literal: "foo", Line: 1, Column: 0},
-				{Type: equal, Lexeme: "=", Literal: "=", Line: 1, Column: 5},
-				{Type: floatPoint, Lexeme: "5_123.12", Literal: float64(5123.12), Line: 1, Column: 7},
+				{Type: bareKey, Lexeme: "foo", Literal: "foo", Line: 0, Column: 3},
+				{Type: equal, Lexeme: "=", Literal: "=", Line: 0, Column: 5},
+				{Type: floatPoint, Lexeme: "5_123.12", Literal: float64(5123.12), Line: 0, Column: 14},
 				{Type: eof},
 			},
 		},
 		"simple key value with infinity": {
 			sourceBytes: []byte(`foo = inf`),
 			expectedTokens: []token{
-				{Type: bareKey, Lexeme: "foo", Literal: "foo", Line: 1, Column: 0},
-				{Type: equal, Lexeme: "=", Literal: "=", Line: 1, Column: 5},
-				{Type: infinity, Lexeme: "inf", Literal: float64(math.Inf(1)), Line: 1, Column: 7},
+				{Type: bareKey, Lexeme: "foo", Literal: "foo", Line: 0, Column: 3},
+				{Type: equal, Lexeme: "=", Literal: "=", Line: 0, Column: 5},
+				{Type: infinity, Lexeme: "inf", Literal: float64(math.Inf(1)), Line: 0, Column: 7},
 				{Type: eof},
 			},
 		},
 		"simple key value with Nan": {
 			sourceBytes: []byte(`foo = nan`),
 			expectedTokens: []token{
-				{Type: bareKey, Lexeme: "foo", Literal: "foo", Line: 1, Column: 0},
-				{Type: equal, Lexeme: "=", Literal: "=", Line: 1, Column: 5},
-				{Type: nan, Lexeme: "nan", Literal: float64(math.NaN()), Line: 1, Column: 7},
+				{Type: bareKey, Lexeme: "foo", Literal: "foo", Line: 0, Column: 3},
+				{Type: equal, Lexeme: "=", Literal: "=", Line: 0, Column: 5},
+				{Type: nan, Lexeme: "nan", Literal: float64(math.NaN()), Line: 0, Column: 7},
+				{Type: eof},
+			},
+		},
+		"simple key value with local time": {
+			sourceBytes: []byte(`foo = 12:00:21`),
+			expectedTokens: []token{
+				{Type: bareKey, Lexeme: "foo", Literal: "foo", Line: 0, Column: 3},
+				{Type: equal, Lexeme: "=", Literal: "=", Line: 0, Column: 5},
+				{Type: localTime, Lexeme: "12:00:21", Literal: time.Date(0, 0, 0, 12, 0, 21, 0, time.UTC), Line: 0, Column: 11},
 				{Type: eof},
 			},
 		},
@@ -70,7 +79,7 @@ func Test_Scan(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			scanner := newScanner(tt.sourceBytes)
-			tokens, err := scanner.scan()
+			got, err := scanner.scan()
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("expecting error, got none")
@@ -78,41 +87,8 @@ func Test_Scan(t *testing.T) {
 				return
 			}
 
-			if err != nil {
-				t.Fatalf("unexpected scanner error: %v", err)
-			}
-
-			if len(tokens) != len(tt.expectedTokens) {
-				t.Fatalf("expected %d tokens, got %d: %v", len(tt.expectedTokens), len(tokens), tokens)
-			}
-
-			for i, want := range tt.expectedTokens {
-				got := tokens[i]
-				if got.Type != want.Type {
-					t.Errorf("token %d: expected type %v, got %v", i, want.Type, got.Type)
-				}
-
-				if want.Lexeme != "" && got.Lexeme != want.Lexeme {
-					t.Errorf("token %d: expected lexeme %v, got %v", i, want.Lexeme, got.Lexeme)
-				}
-
-				if want.Literal != nil && got.Literal != want.Literal {
-					// Special case for NaN since NaN is unequal to everything, even itself
-					if want.Type == nan {
-						f, ok := got.Literal.(float64)
-						if !ok {
-							t.Fatalf("Did not get Float64 for NaN value")
-						}
-
-						if !math.IsNaN(f) {
-							t.Fatalf("Expecting NaN literal, got: %v", f)
-						}
-
-						return
-					}
-					t.Errorf("token %d: expected literal %v, got %v", i, want.Literal, got.Literal)
-				}
-			}
+			want := tt.expectedTokens
+			assertTokens(t, got, want)
 		})
 	}
 }
@@ -179,9 +155,7 @@ func Test_IntegerNode(t *testing.T) {
 			}
 
 			tokens, err := s.scan()
-			if err != nil {
-				t.Fatalf("Not expecting error, got: %v", err)
-			}
+			assert.NilError(t, err, "not expecting error, got %v", err)
 
 			if tokens[0].Type != tt.tokenType {
 				t.Fatalf("Incorrect token type: Expected %v. Got %v", integer, tokens[0].Type)
@@ -344,56 +318,16 @@ func Test_LocalTimeParsing(t *testing.T) {
 					t.Fatalf("Expecting error, got none")
 				}
 			} else {
-				if err != nil {
-					t.Fatalf("unexpected error %v", err)
-				}
-
-				if tokens[0].Type != tt.tokenType {
-					t.Fatalf("expected localDate, got %s", tokens[0].Type)
-				}
-
 				got, ok := tokens[0].Literal.(time.Time)
 				if !ok {
-					t.Fatalf("expected token of type Time, got %T", t)
+					t.Fatalf("Not of type time.Time")
 				}
 
-				var compareFunc func(a time.Time, b time.Time) bool
-				switch tt.tokenType {
-				case localTime:
-					compareFunc = compareLocalTime
-				}
-
-				assert.Check(t, compareFunc(got, tt.want))
+				assert.NilError(t, err, "not expecting error, got %v", err)
+				assertClock(t, got, tt.want)
 			}
 		})
 	}
-}
-
-func compareLocalTime(a, b time.Time) bool {
-	hoursCmp := cmp.Compare(a.Hour(), b.Hour())
-	if hoursCmp != 0 {
-		return false
-	}
-
-	minutesCmp := cmp.Compare(a.Minute(), b.Minute())
-	if minutesCmp != 0 {
-		return false
-	}
-
-	secondsCmp := cmp.Compare(a.Second(), b.Second())
-	if secondsCmp != 0 {
-		return false
-	}
-
-	nanosecondsCmp := cmp.Compare(a.Nanosecond(), b.Nanosecond())
-	if nanosecondsCmp != 0 {
-		return false
-	}
-
-	if a.Location() != b.Location() {
-		return false
-	}
-	return true
 }
 
 func Test_KeyNode(t *testing.T) {
@@ -540,5 +474,92 @@ My name is.
 				t.Fatalf("Incorrect literal value for token: Expected: %s. Got: %v", tt.text, tokens[0].Literal)
 			}
 		})
+	}
+}
+
+func assertTokens(t *testing.T, got []token, want []token) {
+	t.Helper()
+
+	if len(got) != len(want) {
+		t.Fatalf("expected %d tokens, got %d", len(want), len(got))
+	}
+
+	for i := range got {
+		g, w := got[i], want[i]
+
+		if g.Type != w.Type {
+			t.Fatalf("TokenType: want %s, got %s", w.Type, g.Type)
+		}
+
+		if g.Lexeme != "" && g.Lexeme != w.Lexeme {
+			t.Fatalf("Lexeme: expected %s, got %s", w.Lexeme, g.Lexeme)
+		}
+
+		assertTokenLiteral(t, g, w)
+	}
+}
+
+func assertTokenLiteral(t *testing.T, got, want token) {
+	t.Helper()
+
+	if got.Type == nan {
+		if f, ok := got.Literal.(float64); !ok {
+			t.Fatalf("Did not get float64 for NaN")
+		} else if !math.IsNaN(f) {
+			t.Fatalf("Expecting NaN literal, got %v", f)
+		}
+		return
+	}
+
+	if reflect.TypeOf(got) != reflect.TypeOf(want) {
+		t.Fatalf("Unable to compare: %T != %T", got, want)
+	}
+
+	switch got.Literal.(type) {
+	case time.Time:
+		assertTime(t, got, want)
+	case int, int64, string, bool:
+		assert.Equal(t, got, want)
+	default:
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %#v, want %#v", got, want)
+		}
+	}
+}
+
+func assertTime(t *testing.T, got, want token) {
+	t.Helper()
+
+	g := got.Literal.(time.Time)
+	w := got.Literal.(time.Time)
+
+	switch got.Type {
+	case localTime:
+		assertClock(t, g, w)
+	default:
+	}
+}
+
+func assertClock(t *testing.T, got, want time.Time) {
+	t.Helper()
+	gh, gm, gs := got.Clock()
+	gn := got.Nanosecond()
+	wh, wm, ws := want.Clock()
+	wn := want.Nanosecond()
+
+	if gh != wh {
+		t.Fatalf("Clock: expected hours %d, got %d", wh, gh)
+	}
+
+	if gm != wm {
+		t.Fatalf("Clock: expected minutes %d, got %d", wm, gm)
+	}
+
+	if gs != ws {
+		t.Fatalf("Clock: expected seconds %d, got %d", ws, gs)
+	}
+
+	if gn != wn {
+		t.Fatalf("Clock: expected nanoseconds %d, got %d", wn, gn)
 	}
 }
