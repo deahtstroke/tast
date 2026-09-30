@@ -178,7 +178,6 @@ func Test_LocalTimeParsing(t *testing.T) {
 		tokenType tokenType
 		want      time.Time
 		shouldErr bool
-		errType   error
 	}{
 		"inferred seconds": {
 			source:    []byte(`12:00`),
@@ -320,11 +319,53 @@ func Test_LocalTimeParsing(t *testing.T) {
 			} else {
 				got, ok := tokens[0].Literal.(time.Time)
 				if !ok {
-					t.Fatalf("Not of type time.Time")
+					t.Fatalf("Not of type time.Time: %T", got)
 				}
 
 				assert.NilError(t, err, "not expecting error, got %v", err)
 				assertClock(t, got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_LocalDateParsing(t *testing.T) {
+	tests := map[string]struct {
+		source    []byte
+		token     tokenType
+		want      time.Time
+		shouldErr bool
+	}{
+		"Simple valid date": {
+			source: []byte(`2026-12-02`),
+			token:  localDate,
+			want:   time.Date(2026, 12, 0o2, 0, 0, 0, 0, time.UTC),
+		},
+		"Date with invalid month": {
+			source:    []byte(`2026-13-02`),
+			token:     localDate,
+			shouldErr: true,
+		},
+	}
+
+	for test, tt := range tests {
+		t.Run(test, func(t *testing.T) {
+			scanner := newScanner(tt.source)
+			tokens, err := scanner.scan()
+
+			if tt.shouldErr {
+				if err == nil {
+					t.Fatalf("Expecting error, got none")
+				}
+			} else {
+				got, ok := tokens[0].Literal.(time.Time)
+				if !ok {
+					t.Fatalf("Not of type time.Time: %T", got)
+				}
+
+				want := tt.want
+				assert.NilError(t, err, "Not expecting error, got %v", err)
+				assertDate(t, got, want)
 			}
 		})
 	}
@@ -537,6 +578,25 @@ func assertTime(t *testing.T, got, want token) {
 	case localTime:
 		assertClock(t, g, w)
 	default:
+	}
+}
+
+func assertDate(t *testing.T, got, want time.Time) {
+	t.Helper()
+
+	gy, gm, gd := got.Date()
+	wy, wm, wd := want.Date()
+
+	if gy != wy {
+		t.Fatalf("Date: expected years %d, got %d", wy, gy)
+	}
+
+	if gm != wm {
+		t.Fatalf("Date: expected months %d, got %d", wm, gm)
+	}
+
+	if gd != wd {
+		t.Fatalf("Date: expected days %d, got %d", wd, gd)
 	}
 }
 

@@ -26,110 +26,6 @@ type scanner struct {
 	start   int
 }
 
-func (t tokenType) String() string {
-	switch t {
-	case comment:
-		return "Comment"
-	case leftBracket:
-		return "Left Bracket"
-	case rightBracket:
-		return "Right Bracket"
-	case leftBrace:
-		return "Left Curly Brace"
-	case rightBrace:
-		return "Right Curly Brace"
-	case comma:
-		return "Comma"
-	case dot:
-		return "Dot"
-	case minus:
-		return "Minus"
-	case plus:
-		return "Plus"
-	case slash:
-		return "Slash"
-	case star:
-		return "Star"
-	case equal:
-		return "Equal"
-	case newLine:
-		return "New Line"
-	case basicString:
-		return "Basic String"
-	case multilineBasicString:
-		return "Multi-line Basic String"
-	case literalString:
-		return "Literal String"
-	case multilineLiteralString:
-		return "Multi-line Literal String"
-	case floatPoint:
-		return "Floating Point"
-	case integer:
-		return "Integer"
-	case localDate:
-		return "Local Date"
-	case localTime:
-		return "Local Time"
-	case localDateTime:
-		return "Local Date Time"
-	case offsetDateTime:
-		return "Offset Date Time"
-	case bareKey:
-		return "Bare Key"
-	case boolean:
-		return "Boolean"
-	case infinity:
-		return "Infinity"
-	case nan:
-		return "NaN"
-	case eof:
-		return "EOF"
-	default:
-		return ""
-	}
-}
-
-type tokenType uint32
-
-const (
-	_ tokenType = iota
-	comment
-	leftBracket
-	rightBracket
-	leftBrace
-	rightBrace
-	comma
-	dot
-	minus
-	plus
-	slash
-	star
-	equal
-	newLine
-
-	basicString
-	multilineBasicString
-
-	literalString
-	multilineLiteralString
-
-	floatPoint
-	integer
-
-	localDate
-	localTime
-	localDateTime
-	offsetDateTime
-
-	bareKey
-	// Reserved keywords
-	boolean
-	infinity
-	nan
-
-	eof
-)
-
 var timeTerminators map[byte]struct{} = map[byte]struct{}{
 	'\n': {},
 	'\t': {},
@@ -158,9 +54,10 @@ func newScanner(src []byte) *scanner {
 func (s *scanner) scan() ([]token, error) {
 	for !s.isAtEnd() {
 		s.start = s.current
-		s.scanNext()
+		s.nextToken()
 	}
-	s.tokens = append(s.tokens, token{Type: eof, Lexeme: "", Line: s.line})
+
+	s.eof()
 
 	if len(s.errors) > 0 {
 		errs := make([]error, len(s.errors))
@@ -173,9 +70,13 @@ func (s *scanner) scan() ([]token, error) {
 	return s.tokens, nil
 }
 
-func (s *scanner) scanNext() {
-	currentChar := s.advance()
-	switch currentChar {
+func (s *scanner) eof() {
+	s.tokens = append(s.tokens, token{Type: eof, Lexeme: "", Line: s.line})
+}
+
+func (s *scanner) nextToken() {
+	curr := s.next()
+	switch curr {
 	case '#':
 		s.comment()
 	case '"':
@@ -204,27 +105,25 @@ func (s *scanner) scanNext() {
 		if s.matchSequence("nf") {
 			s.addToken(infinity, math.Inf(1))
 		} else {
-			s.key()
+			s.scanKeys()
 		}
 	case 'n':
 		if s.matchSequence("an") {
 			s.addToken(nan, math.NaN())
 		} else {
-			s.key()
+			s.scanKeys()
 		}
 	case 't':
 		if s.matchSequence("rue") {
 			s.addToken(boolean, true)
-			return
 		} else {
-			s.key()
+			s.scanKeys()
 		}
 	case 'f':
 		if s.matchSequence("alse") {
 			s.addToken(boolean, false)
-			return
 		} else {
-			s.key()
+			s.scanKeys()
 		}
 	case '+':
 		s.addToken(plus, "+")
@@ -233,18 +132,17 @@ func (s *scanner) scanNext() {
 	case '\t', ' ', '\r': // ignore tabs, spaces and carriage returns
 		break
 	default:
-		// Check for both regular numbers and dates
-		if isDigit(currentChar) {
-			s.number()
+		if isDigit(curr) {
+			s.scanNumerals()
 			return
 		}
 
-		if isKey(currentChar) {
-			s.key()
+		if isKey(curr) {
+			s.scanKeys()
 			return
 		}
 
-		s.addError("unexpected character " + string(currentChar))
+		s.addError("unexpected character " + string(curr))
 	}
 }
 
@@ -261,17 +159,19 @@ func (s *scanner) matchSequence(expected string) bool {
 	return true
 }
 
-func (s *scanner) advance() byte {
+// Advance to the next token
+func (s *scanner) next() byte {
 	curr := s.source[s.current]
 	s.column++
 	s.current++
 	return curr
 }
 
-func (s *scanner) advanceN(n int) {
+// Advance N times to the next token
+func (s *scanner) nextN(n int) {
 	if n > 0 {
 		for range n {
-			s.advance()
+			s.next()
 		}
 	}
 }
@@ -323,7 +223,7 @@ func (s *scanner) isAtEnd() bool {
 
 func (s *scanner) comment() {
 	for s.peek() != '\n' && !s.isAtEnd() {
-		s.advance()
+		s.next()
 	}
 	commentValue := s.source[s.start:s.current]
 
@@ -332,7 +232,11 @@ func (s *scanner) comment() {
 	s.addToken(comment, commentValue)
 }
 
-func (s *scanner) number() {
+// scanNumerals() encapsulates numerical-specific behavior when scanning tokens
+// in a TOML file such as branching out to Local Time or Local Date respectively
+// depending on the layout of the tokens scanned or returning an integer or float
+// token
+func (s *scanner) scanNumerals() {
 	var hasUnderscores bool
 
 	for !s.isAtEnd() {
@@ -344,10 +248,10 @@ func (s *scanner) number() {
 
 		if !hasUnderscores {
 			if s.current-s.start == 2 && s.peek() == ':' {
-				s.parseLocalTime()
+				s.scanTime()
 				return
 			} else if s.current-s.start == 4 && s.peek() == '-' {
-				s.parseLocalDate()
+				s.scanDate()
 				return
 			}
 		}
@@ -356,17 +260,17 @@ func (s *scanner) number() {
 			break
 		}
 
-		s.advance()
+		s.next()
 	}
 
 	var isFloatingPoint bool
 	if s.peek() == '.' && isDigit(s.peekNext()) {
 
 		isFloatingPoint = true
-		s.advance()
+		s.next()
 
 		for isDigit(s.peek()) {
-			s.advance()
+			s.next()
 		}
 	}
 
@@ -387,15 +291,17 @@ func (s *scanner) number() {
 	}
 }
 
-func (s *scanner) parseLocalTime() {
-	s.advance()
+// scanTime() tries to parse the time portion of RFC 3339 as specified in the
+// TOML v1.1 spec. It makes no assumptions regarding timezone or offset
+func (s *scanner) scanTime() {
+	s.next()
 	if s.isAtEnd() || !(isDigit(s.peek()) && isDigit(s.peekNext())) {
 		msg := "Unable to parse local time token: Minutes are malformed"
 		s.addError(msg)
 		return
 	}
 
-	s.advanceN(2)
+	s.nextN(2)
 
 	// Unknown seconds are assumed to be :00, therefore we just save the token
 	_, isTerminator := timeTerminators[s.peek()]
@@ -416,7 +322,7 @@ func (s *scanner) parseLocalTime() {
 	}
 
 	// ':' for seconds
-	s.advance()
+	s.next()
 
 	if s.isAtEnd() || !(isDigit(s.peek()) && isDigit(s.peekNext())) {
 		msg := "Unable to parse local time: Seconds are malformed"
@@ -424,7 +330,7 @@ func (s *scanner) parseLocalTime() {
 		return
 	}
 
-	s.advanceN(2)
+	s.nextN(2)
 
 	// Local time that stops at seconds, no millisecond precision
 	_, isTerminator = timeTerminators[s.peek()]
@@ -447,11 +353,11 @@ func (s *scanner) parseLocalTime() {
 	}
 
 	// '.' for milliseconds
-	s.advance()
+	s.next()
 
 	c := 0
 	for !s.isAtEnd() || c > NanoSecondPrecision {
-		s.advance()
+		s.next()
 	}
 
 	t, err := time.Parse("15:04:05.999999", string(s.source[s.start:s.current]))
@@ -463,13 +369,46 @@ func (s *scanner) parseLocalTime() {
 	s.addToken(localTime, t)
 }
 
-func (s *scanner) parseLocalDate() {
-	panic("unimplemented")
+func (s *scanner) scanDate() {
+	// consume initial hyphen
+	s.next()
+
+	if s.isAtEnd() || !(isDigit(s.peek()) && isDigit(s.peekNext())) {
+		msg := "Unable to parse local date token: Month is malformed"
+		s.addError(msg)
+		return
+	}
+
+	s.nextN(2)
+
+	if s.peek() != '-' {
+		msg := "Unable to parse date token: expected hyphen, got %s"
+		s.addError(fmt.Sprintf(msg, string(s.peek())))
+		return
+	}
+
+	s.next()
+
+	if s.isAtEnd() || !(isDigit(s.peek()) && isDigit(s.peekNext())) {
+		msg := "Unable to parse local date token: Day is malformed"
+		s.addError(msg)
+		return
+	}
+
+	s.nextN(2)
+
+	t, err := time.Parse(time.DateOnly, string(s.source[s.start:s.current]))
+	if err != nil {
+		s.addError(fmt.Sprintf("Unable to parse time: %v", err))
+		return
+	}
+
+	s.addToken(localDate, t)
 }
 
-func (s *scanner) key() {
+func (s *scanner) scanKeys() {
 	for !s.isAtEnd() && isKey(s.peek()) {
-		s.advance()
+		s.next()
 	}
 
 	lexeme := s.source[s.start:s.current]
@@ -482,7 +421,7 @@ func (s *scanner) multilineBasicString() {
 			s.line++
 			s.column = 0
 		}
-		s.advance()
+		s.next()
 	}
 
 	// Unterminated multilne string
@@ -491,9 +430,9 @@ func (s *scanner) multilineBasicString() {
 		return
 	}
 
-	s.advance() // Trim first '"'
-	s.advance() // Trim second '"'
-	s.advance() // Trim third '"'
+	s.next() // Trim first '"'
+	s.next() // Trim second '"'
+	s.next() // Trim third '"'
 
 	strValue := s.source[s.start+3 : s.current-3]
 
@@ -523,7 +462,7 @@ func (s *scanner) basicString() {
 		if s.peek() == '\n' {
 			s.line++
 		}
-		s.advance()
+		s.next()
 	}
 
 	if s.isAtEnd() {
@@ -531,7 +470,7 @@ func (s *scanner) basicString() {
 		return
 	}
 
-	s.advance()
+	s.next()
 
 	// lexeme = s.Source[s.start:s.current] → "hello" (with quotes, handled by addTokenValue)
 	// literal = just the content between the quotes
