@@ -3,7 +3,6 @@ package tast
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -232,63 +231,84 @@ func (s *scanner) comment() {
 	s.addToken(comment, commentValue)
 }
 
-// scanNumerals() encapsulates numerical-specific behavior when scanning tokens
-// in a TOML file such as branching out to Local Time or Local Date respectively
-// depending on the layout of the tokens scanned or returning an integer or float
-// token
-func (s *scanner) scanNumerals() {
-	var hasUnderscores bool
-
+// scanDigits loops through the characters and will only return an error
+// if we find an invalid underscore that's not between two digits.
+// Finding something other than a digit will still return with no issues
+// since errors are supposed to be handled downstream for unexpected
+// characters
+func (s *scanner) scanDigits() bool {
 	for !s.isAtEnd() {
-		isUnderscore := s.isValidUnderscore()
-
-		if isUnderscore {
-			hasUnderscores = true
+		switch c := s.peek(); {
+		case isDigit(c):
+			s.next()
+		case c == '_' && isDigit(s.peekNext()):
+			s.nextN(2)
+		case c == '_':
+			s.next()
+			s.addError("Numeral: Undescore must between digits")
+			return false
+		default:
+			return true
 		}
+	}
+	return true
+}
 
-		if !hasUnderscores {
-			if s.current-s.start == 2 && s.peek() == ':' {
-				s.scanTime()
-				return
-			} else if s.current-s.start == 4 && s.peek() == '-' {
-				s.scanDate()
-				return
-			}
-		}
-
-		if !isDigit(s.peek()) && !isUnderscore {
-			break
-		}
-
-		s.next()
+// scanNumerals encapsulates numerical-specific behavior when scanning tokens
+// in a TOML file such as branching out to LocalTime or LocalDate depending on
+// the layout of the tokens scanned or returning an integer or float or handling
+// appropriately formatted floats and integers
+func (s *scanner) scanNumerals() {
+	if !s.scanDigits() {
+		return
 	}
 
-	var isFloatingPoint bool
+	lexeme := string(s.source[s.start:s.current])
+	hasUnderscores := strings.Contains(lexeme, "_")
+
+	if !hasUnderscores {
+		switch {
+		case s.current-s.start == 2 && s.peek() == ':':
+			s.scanTime()
+			return
+		case s.current-s.start == 4 && s.peek() == '-':
+			s.scanDate()
+			return
+		}
+	}
+
+	isFloat := false
 	if s.peek() == '.' && isDigit(s.peekNext()) {
 
-		isFloatingPoint = true
-		s.next()
+		isFloat = true
+		s.next() // '.'
 
-		for isDigit(s.peek()) {
-			s.next()
+		if !s.scanDigits() {
+			return
 		}
+
+		lexeme = string(s.source[s.start:s.current])
 	}
 
-	lexeme := s.source[s.start:s.current]
-
-	// Cleanup any underscores
 	cleaned := strings.ReplaceAll(string(lexeme), "_", "")
 
-	if isFloatingPoint {
-		floatVal, _ := strconv.ParseFloat(cleaned, 64)
-		s.addToken(floatPoint, floatVal)
-	} else {
-		intVal, err := strconv.ParseInt(cleaned, 10, 64)
+	if isFloat {
+		v, err := strconv.ParseFloat(cleaned, 64)
 		if err != nil {
-			log.Printf("err: %v", err)
+			s.addError(fmt.Sprintf("Numericals: invalid float %v", lexeme))
+			return
 		}
-		s.addToken(integer, intVal)
+		s.addToken(floatPoint, v)
+		return
 	}
+
+	v, err := strconv.ParseInt(cleaned, 10, 64)
+	if err != nil {
+		s.addError(fmt.Sprintf("Numericals invalid integer %v", lexeme))
+		return
+	}
+
+	s.addToken(integer, v)
 }
 
 // scanTime() tries to parse the time portion of RFC 3339 as specified in the
@@ -397,6 +417,13 @@ func (s *scanner) scanDate() {
 
 	s.nextN(2)
 
+	switch {
+	case s.peek() == 'T' || s.peek() == 't' || s.peek() == ' ':
+		s.scanTime()
+	}
+
+	// Branch to localdatetime or offsetdatetime
+
 	t, err := time.Parse(time.DateOnly, string(s.source[s.start:s.current]))
 	if err != nil {
 		s.addError(fmt.Sprintf("Unable to parse time: %v", err))
@@ -493,12 +520,6 @@ func (s *scanner) isMultilineClosing() bool {
 	}
 
 	return s.peek() == '"' && s.peekNext() == '"' && s.peekAt(2) == '"'
-}
-
-// Valid underscore means that it should be proceded by another digit value
-// otherwise is not valid
-func (s *scanner) isValidUnderscore() bool {
-	return s.peek() == '_' && isDigit(s.peekNext())
 }
 
 // isDigit checks if the passed in byte is a digit, e.g., in between '0' and '9'

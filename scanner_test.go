@@ -346,6 +346,21 @@ func Test_LocalDateParsing(t *testing.T) {
 			token:     localDate,
 			shouldErr: true,
 		},
+		"Date with invalid day of the month": {
+			source:    []byte(`2026-12-32`),
+			token:     localDate,
+			shouldErr: true,
+		},
+		"Invalid format for month": {
+			source:    []byte(`2026-112-01`),
+			token:     localDate,
+			shouldErr: true,
+		},
+		"Invalid format for day": {
+			source:    []byte(`2026-11-101`),
+			token:     localDate,
+			shouldErr: true,
+		},
 	}
 
 	for test, tt := range tests {
@@ -572,7 +587,7 @@ func assertTime(t *testing.T, got, want token) {
 	t.Helper()
 
 	g := got.Literal.(time.Time)
-	w := got.Literal.(time.Time)
+	w := want.Literal.(time.Time)
 
 	switch got.Type {
 	case localTime:
