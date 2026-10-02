@@ -25,15 +25,6 @@ type scanner struct {
 	start   int
 }
 
-var timeTerminators map[byte]struct{} = map[byte]struct{}{
-	'\n': {},
-	'\t': {},
-	' ':  {},
-	'#':  {},
-	']':  {},
-	'}':  {},
-}
-
 type token struct {
 	Type    tokenType
 	Lexeme  string
@@ -314,79 +305,80 @@ func (s *scanner) scanNumerals() {
 // scanTime() tries to parse the time portion of RFC 3339 as specified in the
 // TOML v1.1 spec. It makes no assumptions regarding timezone or offset
 func (s *scanner) scanTime() {
-	s.next()
-	if s.isAtEnd() || !(isDigit(s.peek()) && isDigit(s.peekNext())) {
-		msg := "Unable to parse local time token: Minutes are malformed"
-		s.addError(msg)
-		return
+	layoutFragment, err := s.consumeClock()
+	if err != nil {
+		s.addError("Unable to parse time: " + err.Error())
 	}
 
-	s.nextN(2)
-
-	// Unknown seconds are assumed to be :00, therefore we just save the token
-	_, isTerminator := timeTerminators[s.peek()]
-	if s.isAtEnd() || isTerminator {
-		union := string(s.source[s.start:s.current]) + ":00"
-		t, err := time.Parse(time.TimeOnly, union)
-		if err != nil {
-			s.addError(fmt.Sprintf("Unable to parse time: %v", err))
-			return
-		}
-
-		s.addToken(localTime, t)
-		return
-	} else if s.peek() != ':' {
-		msg := "Unable to parse local time token: Minutes are malformed"
-		s.addError(msg)
-		return
-	}
-
-	// ':' for seconds
-	s.next()
-
-	if s.isAtEnd() || !(isDigit(s.peek()) && isDigit(s.peekNext())) {
-		msg := "Unable to parse local time: Seconds are malformed"
-		s.addError(msg)
-		return
-	}
-
-	s.nextN(2)
-
-	// Local time that stops at seconds, no millisecond precision
-	_, isTerminator = timeTerminators[s.peek()]
-	illegalTermination := !isTerminator && s.peek() != '.'
-	switch {
-	case isTerminator, s.isAtEnd():
-		t, err := time.Parse("15:04:05", string(s.source[s.start:s.current]))
-		if err != nil {
-			s.addError(fmt.Sprintf("Unable to parse time: %v", err))
-			return
-		}
-
-		s.addToken(localTime, t)
-		return
-	case illegalTermination:
-		msg := "Unable to parse local time: Seconds are malformed"
-		s.addError(msg)
-		return
-	default:
-	}
-
-	// '.' for milliseconds
-	s.next()
-
-	c := 0
-	for !s.isAtEnd() || c > NanoSecondPrecision {
-		s.next()
-	}
-
-	t, err := time.Parse("15:04:05.999999", string(s.source[s.start:s.current]))
+	lexeme := string(s.source[s.start:s.current])
+	t, err := time.Parse("15"+layoutFragment, lexeme)
 	if err != nil {
 		s.addError(fmt.Sprintf("Unable to parse time: %v", err))
-		return
+	}
+	s.addToken(localTime, t)
+}
+
+// consumeClock has the core logic for scanning through a clock value
+// of the form :MM[:ss[.frac]]. It returns the matching layout format fragment
+//
+// For example, if the clock portion only had hours and minutes then we know the
+// layout for this would be of the form `15:04` since we dont have seconds or fractional
+// seconds to scan, but since we already consumed the hour portion of the time then we
+// just need to make sure that we return the layout with either minutes, e.g, 15:04
+// or with minutes and seconds 15:04:05
+func (s *scanner) consumeClock() (string, error) {
+	s.next() // ':'
+
+	if err := s.consumeTwoDigits("minutes"); err != nil {
+		s.addError(err.Error())
+		return "", err
 	}
 
-	s.addToken(localTime, t)
+	// Short circuit if we don't find seconds
+	if s.peek() != ':' {
+		return ":04", nil
+	}
+
+	s.next() // ':'
+
+	if err := s.consumeTwoDigits("seconds"); err != nil {
+		return "", err
+	}
+
+	if s.peek() == '.' {
+		s.next()
+
+		if err := s.consumeFraction(); err != nil {
+			return "", err
+		}
+	}
+
+	return ":04:05", nil
+}
+
+func (s *scanner) consumeFraction() error {
+	digits := 0
+	for isDigit(s.peek()) || digits > NanoSecondPrecision {
+		s.next()
+		digits++
+	}
+
+	switch digits {
+	case 0:
+		return errors.New("Unable to parse time: fractional seconds have no digits")
+	default:
+		// Just fall through
+	}
+
+	return nil
+}
+
+func (s *scanner) consumeTwoDigits(temporalUnit string) error {
+	if !isDigit(s.peek()) || !isDigit(s.peekNext()) {
+		return fmt.Errorf("Unable to parse local time: %s are malformed", temporalUnit)
+	}
+	s.nextN(2)
+	return nil
 }
 
 func (s *scanner) scanDate() {
