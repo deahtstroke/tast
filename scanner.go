@@ -76,49 +76,49 @@ func (s *scanner) nextToken() {
 			s.basicString()
 		}
 	case '=':
-		s.addToken(equal, "=")
+		s.emitToken(equal, "=")
 	case '\n':
-		s.addToken(newLine, "\n")
+		s.emitToken(newLine, "\n")
 		s.column = 0
 		s.line++
 	case '.':
-		s.addToken(dot, ".")
+		s.emitToken(dot, ".")
 	case '[':
-		s.addToken(leftBracket, "[")
+		s.emitToken(leftBracket, "[")
 	case ']':
-		s.addToken(rightBracket, "]")
+		s.emitToken(rightBracket, "]")
 	case '{':
-		s.addToken(leftBrace, "{")
+		s.emitToken(leftBrace, "{")
 	case '}':
-		s.addToken(rightBracket, "}")
+		s.emitToken(rightBracket, "}")
 	case 'i':
 		if s.matchSequence("nf") {
-			s.addToken(infinity, math.Inf(1))
+			s.emitToken(infinity, math.Inf(1))
 		} else {
 			s.scanKeys()
 		}
 	case 'n':
 		if s.matchSequence("an") {
-			s.addToken(nan, math.NaN())
+			s.emitToken(nan, math.NaN())
 		} else {
 			s.scanKeys()
 		}
 	case 't':
 		if s.matchSequence("rue") {
-			s.addToken(boolean, true)
+			s.emitToken(boolean, true)
 		} else {
 			s.scanKeys()
 		}
 	case 'f':
 		if s.matchSequence("alse") {
-			s.addToken(boolean, false)
+			s.emitToken(boolean, false)
 		} else {
 			s.scanKeys()
 		}
 	case '+':
-		s.addToken(plus, "+")
+		s.emitToken(plus, "+")
 	case '-':
-		s.addToken(minus, "-")
+		s.emitToken(minus, "-")
 	case '\t', ' ', '\r': // ignore tabs, spaces and carriage returns
 		break
 	default:
@@ -193,7 +193,7 @@ func (s *scanner) peekAt(offset int) byte {
 }
 
 // Adds a token to the scanner's list of consumed tokens
-func (s *scanner) addToken(tokenType tokenType, literal any) {
+func (s *scanner) emitToken(tokenType tokenType, literal any) {
 	lexeme := string(s.source[s.start:s.current])
 	t := token{
 		Line:    s.line,
@@ -219,7 +219,7 @@ func (s *scanner) comment() {
 
 	// make up for finding a newline character
 	s.line++
-	s.addToken(comment, commentValue)
+	s.emitToken(comment, commentValue)
 }
 
 // scanDigits loops through the characters and will only return an error
@@ -260,7 +260,7 @@ func (s *scanner) scanNumerals() {
 	if !hasUnderscores {
 		switch {
 		case s.current-s.start == 2 && s.peek() == ':':
-			s.scanTime()
+			s.scanClock()
 			return
 		case s.current-s.start == 4 && s.peek() == '-':
 			s.scanDate()
@@ -289,7 +289,7 @@ func (s *scanner) scanNumerals() {
 			s.addError(fmt.Sprintf("Numericals: invalid float %v", lexeme))
 			return
 		}
-		s.addToken(floatPoint, v)
+		s.emitToken(floatPoint, v)
 		return
 	}
 
@@ -299,12 +299,12 @@ func (s *scanner) scanNumerals() {
 		return
 	}
 
-	s.addToken(integer, v)
+	s.emitToken(integer, v)
 }
 
-// scanTime() tries to parse the time portion of RFC 3339 as specified in the
+// scanClock() tries to parse the time portion of RFC 3339 as specified in the
 // TOML v1.1 spec. It makes no assumptions regarding timezone or offset
-func (s *scanner) scanTime() {
+func (s *scanner) scanClock() {
 	layoutFragment, err := s.consumeClock()
 	if err != nil {
 		s.addError("Unable to parse time: " + err.Error())
@@ -315,11 +315,96 @@ func (s *scanner) scanTime() {
 	if err != nil {
 		s.addError(fmt.Sprintf("Unable to parse time: %v", err))
 	}
-	s.addToken(localTime, t)
+
+	s.emitToken(localTime, t)
 }
 
-// consumeClock has the core logic for scanning through a clock value
-// of the form :MM[:ss[.frac]]. It returns the matching layout format fragment
+// TODO: Need to go back to scanning the date portion since scanClock assumes
+// already-consumed hours upstream, need to check and consume those hours
+// in this method accoridngly
+// Need to double check whether the layouts being hardcoded to time._
+// constands is the right way since my scanClock method allows for time without
+// seconds which RFC3339 does not recognize as valid
+// Same thing for time.dateTime: Is of the form 2026-01-02 15:04:05 which is trouble
+// if I scan clock without seconds
+// TBH! It would honestly just be easier if I just append the ':00' seconds portion
+// to the clock whenever they're missing
+func (s *scanner) scanDate() {
+	tokenType := localDate
+	layout := time.DateOnly
+
+	if err := s.consumeDate(); err != nil {
+		s.addError(err.Error())
+		return
+	}
+
+	switch s.peek() {
+	case ' ', 'T', 't':
+		s.next() // ' ' | 'T' | 't'
+
+		tokenType = localDateTime
+		layout = time.DateTime
+
+		if _, err := s.consumeClock(); err != nil {
+			s.addError(err.Error())
+			return
+		}
+
+		switch s.peek() {
+		case '-', '+', 'Z':
+			c := s.next() // '-' | '+' | 'Z'
+
+			tokenType = offsetDateTime
+			layout = time.RFC3339
+
+			if c == 'Z' {
+				break
+			}
+
+			if err := s.consumeTimeOffset(); err != nil {
+				s.addError(err.Error())
+				return
+			}
+		}
+	}
+
+	// Branch to localdatetime or offsetdatetime
+	t, err := time.Parse(layout, string(s.source[s.start:s.current]))
+	if err != nil {
+		s.addError(fmt.Sprintf("Unable to parse time: %v", err))
+		return
+	}
+
+	s.emitToken(tokenType, t)
+}
+
+func (s *scanner) consumeTimeOffset() error {
+}
+
+func (s *scanner) consumeDate() error {
+	s.next() // '-'
+
+	if err := s.consumeTwoDigits(Months); err != nil {
+		return err
+	}
+
+	if s.peek() != '-' {
+		return fmt.Errorf("Unable to parse date token: expected hyphen, got %s", string(s.peek()))
+	}
+
+	s.next() // '-'
+
+	if err := s.consumeTwoDigits(Days); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// consumeClock has the core logic for scanning-only a clock value
+// of the form :MM[:ss[.frac]], where 'frac' allows up to nanosecond precision
+//
+// # It returns the matching layout format fragment
 //
 // For example, if the clock portion only had hours and minutes then we know the
 // layout for this would be of the form `15:04` since we dont have seconds or fractional
@@ -329,8 +414,7 @@ func (s *scanner) scanTime() {
 func (s *scanner) consumeClock() (string, error) {
 	s.next() // ':'
 
-	if err := s.consumeTwoDigits("minutes"); err != nil {
-		s.addError(err.Error())
+	if err := s.consumeTwoDigits(Minutes); err != nil {
 		return "", err
 	}
 
@@ -341,7 +425,7 @@ func (s *scanner) consumeClock() (string, error) {
 
 	s.next() // ':'
 
-	if err := s.consumeTwoDigits("seconds"); err != nil {
+	if err := s.consumeTwoDigits(Seconds); err != nil {
 		return "", err
 	}
 
@@ -356,6 +440,8 @@ func (s *scanner) consumeClock() (string, error) {
 	return ":04:05", nil
 }
 
+// consumeFraction will scan digits until it finds a non-digit rune
+// It will only consume up-to nanosecond precision which is nine digits
 func (s *scanner) consumeFraction() error {
 	digits := 0
 	for isDigit(s.peek()) || digits > NanoSecondPrecision {
@@ -373,56 +459,12 @@ func (s *scanner) consumeFraction() error {
 	return nil
 }
 
-func (s *scanner) consumeTwoDigits(temporalUnit string) error {
+func (s *scanner) consumeTwoDigits(unit TemporalUnit) error {
 	if !isDigit(s.peek()) || !isDigit(s.peekNext()) {
-		return fmt.Errorf("Unable to parse local time: %s are malformed", temporalUnit)
+		return fmt.Errorf("Unable to parse local time: %s are malformed", unit)
 	}
 	s.nextN(2)
 	return nil
-}
-
-func (s *scanner) scanDate() {
-	// consume initial hyphen
-	s.next()
-
-	if s.isAtEnd() || !(isDigit(s.peek()) && isDigit(s.peekNext())) {
-		msg := "Unable to parse local date token: Month is malformed"
-		s.addError(msg)
-		return
-	}
-
-	s.nextN(2)
-
-	if s.peek() != '-' {
-		msg := "Unable to parse date token: expected hyphen, got %s"
-		s.addError(fmt.Sprintf(msg, string(s.peek())))
-		return
-	}
-
-	s.next()
-
-	if s.isAtEnd() || !(isDigit(s.peek()) && isDigit(s.peekNext())) {
-		msg := "Unable to parse local date token: Day is malformed"
-		s.addError(msg)
-		return
-	}
-
-	s.nextN(2)
-
-	switch {
-	case s.peek() == 'T' || s.peek() == 't' || s.peek() == ' ':
-		s.scanTime()
-	}
-
-	// Branch to localdatetime or offsetdatetime
-
-	t, err := time.Parse(time.DateOnly, string(s.source[s.start:s.current]))
-	if err != nil {
-		s.addError(fmt.Sprintf("Unable to parse time: %v", err))
-		return
-	}
-
-	s.addToken(localDate, t)
 }
 
 func (s *scanner) scanKeys() {
@@ -431,7 +473,7 @@ func (s *scanner) scanKeys() {
 	}
 
 	lexeme := s.source[s.start:s.current]
-	s.addToken(bareKey, string(lexeme))
+	s.emitToken(bareKey, string(lexeme))
 }
 
 func (s *scanner) multilineBasicString() {
@@ -464,7 +506,7 @@ func (s *scanner) multilineBasicString() {
 		}
 	}
 
-	s.addToken(multilineBasicString, string(strValue))
+	s.emitToken(multilineBasicString, string(strValue))
 }
 
 func (s *scanner) addError(msg string) {
@@ -495,7 +537,7 @@ func (s *scanner) basicString() {
 	// literal = just the content between the quotes
 	strValue := s.source[s.start+1 : s.current-1]
 
-	s.addToken(basicString, string(strValue))
+	s.emitToken(basicString, string(strValue))
 }
 
 func (s *scanner) isMultlineStart() bool {
