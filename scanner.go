@@ -378,7 +378,9 @@ func (s *scanner) scanDate() {
 	s.emitToken(tokenType, t)
 }
 
+// TODO: Finish!
 func (s *scanner) consumeTimeOffset() error {
+	panic("Not implemented yet")
 }
 
 func (s *scanner) consumeDate() error {
@@ -444,7 +446,7 @@ func (s *scanner) consumeClock() (string, error) {
 // It will only consume up-to nanosecond precision which is nine digits
 func (s *scanner) consumeFraction() error {
 	digits := 0
-	for isDigit(s.peek()) || digits > NanoSecondPrecision {
+	for isDigit(s.peek()) && digits <= NanoSecondPrecision {
 		s.next()
 		digits++
 	}

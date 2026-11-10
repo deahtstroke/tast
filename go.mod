@@ -12,5 +12,4 @@ require (
 require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/text v0.42.0
 )

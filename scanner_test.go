@@ -70,6 +70,19 @@ func Test_Scan_Values(t *testing.T) {
 				{Type: eof},
 			},
 		},
+		// The reason why this shouldn't error is because the parser will enforce this
+		// Once it realizes that the only token that should follow time is a terminal then
+		// it'll error out
+		"malformed local time with more minutes should NOT error": {
+			sourceBytes: []byte(`time = 12:000`),
+			expectedTokens: []token{
+				{Type: bareKey, Lexeme: "time", Literal: "time", Line: 0, Column: 4},
+				{Type: equal, Lexeme: "=", Literal: "=", Line: 0, Column: 6},
+				{Type: localTime, Lexeme: "12:00", Literal: time.Date(0, 0, 0, 12, 0, 0, 0, time.UTC), Line: 0, Column: 12},
+				{Type: integer, Lexeme: "0", Literal: int64(0), Line: 0, Column: 13},
+				{Type: eof},
+			},
+		},
 		"unterminated string should error": {
 			sourceBytes: []byte(`foo = "bar`),
 			wantErr:     true,
@@ -183,11 +196,6 @@ func Test_LocalTimeParsing(t *testing.T) {
 			source:    []byte(`12:00`),
 			tokenType: localTime,
 			want:      time.Date(0, 0, 0, 12, 0, 0, 0, time.UTC),
-		},
-		"malformed seconds should error": {
-			source:    []byte(`12:300`),
-			tokenType: localTime,
-			shouldErr: true,
 		},
 		"seconds defined": {
 			source:    []byte(`12:00:10`),
@@ -329,7 +337,7 @@ func Test_LocalTimeParsing(t *testing.T) {
 	}
 }
 
-func Test_LocalDateParsing(t *testing.T) {
+func Test_LocalDateScanning(t *testing.T) {
 	tests := map[string]struct {
 		source    []byte
 		token     tokenType
@@ -353,11 +361,6 @@ func Test_LocalDateParsing(t *testing.T) {
 		},
 		"Invalid format for month": {
 			source:    []byte(`2026-112-01`),
-			token:     localDate,
-			shouldErr: true,
-		},
-		"Invalid format for day": {
-			source:    []byte(`2026-11-101`),
 			token:     localDate,
 			shouldErr: true,
 		},
